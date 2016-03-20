@@ -2,7 +2,7 @@ from cycler import cycler
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyblishify import Pyblishify
+from pyblish import pyblishify
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
@@ -36,8 +36,7 @@ ax.set_xlabel('$\mathrm{log\ n\ [cm^{-3}]}$')
 ax.set_ylabel('$\mathrm{(n/n_0)^w}$')
 
 
-p = Pyblishify()
-p.pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=True)
+pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=True)
 
 
 plt.tight_layout()
