@@ -1,5 +1,6 @@
 import collections
 import re
+import math
 
 
 def get_iterable(arg):
@@ -51,4 +52,7 @@ def parse_str_ranges(str_in):
     else:
         range_list = [int(str_in)]
     return range_list
+
+def exp_to_log(x, p):
+    return "{:.0f}".format(math.log10(x))
 

@@ -1,6 +1,7 @@
 axis_dict: {both: '[ax.xaxis, ax.yaxis]', x: ax.xaxis, y: ax.yaxis}
 col_cycle: [red, orange, yellow, green, blue, purple]
 default_mathtext: stixsans
+dpi: 300
 line_style: '-'
 lines_dict:
   color: []
@@ -30,3 +31,5 @@ texts_dict:
   fontsize: []
 tick_dir: out
 ticklabel_pad: -5
+use_unicode_minus: False
+use_mathtext: True
