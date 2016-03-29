@@ -1,0 +1,62 @@
+{
+    "axis_dict": {
+        "both": "[ax.xaxis, ax.yaxis]",
+        "x": "ax.xaxis",
+        "y": "ax.yaxis"
+    },
+    "col_cycle": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "blue",
+        "purple"
+    ],
+    "default_mathtext": "stixsans",
+    "dpi": 300,
+    "line_style": "-",
+    "lines_dict": {
+        "color": [],
+        "linestyle": [],
+        "linewidth": []
+    },
+    "majortick_size": 6.0,
+    "markers_dict": {
+        "edgecolor": [],
+        "facecolor": [],
+        "linestyle": [],
+        "linewidth": [],
+        "paths": [],
+        "sizes": []
+    },
+    "minortick_size": 4.0,
+    "spine_axis_dict": {
+        "bottom": "ax.xaxis",
+        "left": "ax.yaxis",
+        "right": "ax.yaxis",
+        "top": "ax.xaxis"
+    },
+    "spine_col": "black",
+    "spines": [
+        "left",
+        "bottom",
+        "right",
+        "top"
+    ],
+    "spines_dict": {
+        "edgecolor": [],
+        "facecolor": [],
+        "linestyle": [],
+        "linewidth": [],
+        "visible": []
+    },
+    "texts_dict": {
+        "color": [],
+        "fontname": [],
+        "fontsize": []
+    },
+    "tick_dir": "out",
+    "ticklabel_pad": -5,
+    "use_mathtext": true,
+    "use_unicode_minus": false
+}

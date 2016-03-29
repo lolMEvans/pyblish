@@ -1,26 +1,40 @@
+#!/usr/bin/python
+
 #from __future__ import print_function
 
 import warnings
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-import yaml
-import copy
+import json
 import re
-from dotmap import DotMap
 
-import utils
+import copy
+# from DotDict import DotDict
+
+from utils import utils
 
 # ToDo: Main
 
+# Use json instead of yaml
 # make set_legend_props select between lines, marker and texts more intelligently
 # make get functions to accompany set functions
 # make docstrings user-friendly
 
-# Remove DotMap to reduce dependencies on external packages? Or package with it?
+# Remove DotDict to reduce dependencies on external packages? Or package with it?
 
 # Add complementary get functions to every set function?
 # Set custom colour cycle for lines to nice sequence - use ColorMapper module from laptop!
+
+
+class DotDict(dict):
+    '''
+    Dictionary object with dot notation access
+    '''
+    def __getattr__(self, attr):
+        return self.get(attr)
+    __setattr__= dict.__setitem__
+    __delattr__= dict.__delitem__
 
 
 def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks='both',
@@ -29,8 +43,8 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks=
                    which_legend_handles='all', which_legend_labels='all',
                    change_log_scales=True):
 
-    # Convert dictionary to DotMap which is a dict wrapper that allows dot notation
-    defaults_dict = DotMap(_load_defaults())
+    # Convert dictionary to DotDict which is a dict wrapper that allows dot notation
+    defaults_dict = DotDict(_load_defaults())
     # Set defaults that are dependent on number of columns requested
     defaults_dict = _set_params_defaults(defaults_dict, num_cols)
     # Override a selection of default rcParams
@@ -522,23 +536,34 @@ def get_available_fonts():
 
 # Private functions ------------------------------------------------------------
 
-def _load_defaults(file='defaults.yaml'):
+def _load_defaults(file='defaults.json'):
     '''
     Load default pyblish plot parameters
-    :param file: File where defaults are stored in yaml format
+    :param file: File where defaults are stored in json format
     :return: Dictionary of parameters
     '''
     with open(file, 'r') as fp:
-        data = yaml.load(fp)
+        data = json.load(fp)
     return data
+
+
+def _write_defaults(defaults_dict, file='defaults.json'):
+    '''
+    Write default pyblish plot parameters
+    :param defaults_dict: Dictionary of default plot parameters
+    :param file:  File where defaults are stored in json format
+    :return: None
+    '''
+    with open(file, 'w') as fp:
+        json.dump(defaults_dict, fp, indent=4, sort_keys=True)
 
 
 def _set_params_defaults(defaults_dict, num_cols):
     '''
     Set plotting parameters dependent on number of columns requested
-    :param defaults_dict: [dict] DotMap dictionary (supports dot notation) containing default plotting parameters
+    :param defaults_dict: [dict] DotDict dictionary (supports dot notation) containing default plotting parameters
     :param num_cols: [int] Number of columns the figure will span in article
-    :return: [dict] Updated DotMap dictionary
+    :return: [dict] Updated DotDict dictionary
     '''
     defaults_dict['line_width'] = 1.25 + ((num_cols - 1) * 0.5)
     defaults_dict['marker_size'] = 30 + ((num_cols - 1) * 20)
