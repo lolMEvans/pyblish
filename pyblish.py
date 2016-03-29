@@ -9,22 +9,15 @@ from matplotlib.ticker import FuncFormatter
 import json
 import re
 
-import copy
-# from DotDict import DotDict
-
 from utils import utils
 
 # ToDo: Main
 
-# Use json instead of yaml
 # make set_legend_props select between lines, marker and texts more intelligently
 # make get functions to accompany set functions
-# make docstrings user-friendly
+# make docstrings user-friendly - done main functions
 
-# Remove DotDict to reduce dependencies on external packages? Or package with it?
-
-# Add complementary get functions to every set function?
-# Set custom colour cycle for lines to nice sequence - use ColorMapper module from laptop!
+# set custom colour cycle for lines to nice sequence - use ColorMapper module from laptop!
 
 
 class DotDict(dict):
@@ -38,7 +31,7 @@ class DotDict(dict):
 
 
 def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks='both',
-                   which_spines=['left', 'bottom'],
+                   which_spines=('left', 'bottom'),
                    which_lines='all', which_markers='all', which_texts='all',
                    which_legend_handles='all', which_legend_labels='all',
                    change_log_scales=True):
@@ -87,7 +80,7 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks=
             set_spine_props(ax, 'all',
                             spine_props=dict(
                                              linewidth=defaults_dict.spine_width,
-                                             edgecolor='blue'))
+                                             edgecolor=['blue', 'red']))
         # Set line properties using default line properties
         if(which_lines is not None):
             if(ax.lines):
@@ -117,7 +110,8 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks=
         # Set legend properties using old legend properties and new lines and markers properties
         if(ax.get_legend() and (ax.lines or ax.collections)):
             set_legend_props(ax, 'all', 'all', '0:1',
-                             text_props={'color': 'blue'})
+                             text_props={'color': 'blue'}
+                             )
 
 
 def set_figure_size(fig, fig_width, fig_height):
@@ -146,21 +140,25 @@ def set_mathtext_font(font):
         matplotlib.rcParams['mathtext.bf'] = '%s:bold' % font
 
 
-def set_spine_props(ax, which_spines,
-                    spine_props=dict(linewidth=None, edgecolor=None),
-                    hide_other_spines=True,
-                    duplicate_ticks=False):
-    '''
-    Set properties for spines
-    :param ax: [matplotlib.axes] Axis object
-    :param which_spines: [str|list] indexes ('left', 'bottom', 'right', 'top')
-                        [str] 'all'
-                        [matplotlib.spines.Spine] (optionally as list)
-    :param spine_props: [dict] Spine properties
-    :param hide_other_spines: [bool] Unspecified spines are hidden if set
-    :param duplicate_ticks: [bool] Ticks are not duplicated on each side (when both sides of spines are visible) if set
-    :return: None
-    '''
+def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, duplicate_ticks=False):
+    """Set properties for spines.
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_spines (int|str|matplotlib.spines.Spine): spine index(es) as integers, names or objects.
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'left', 'bottom', 'right', 'top', or 'all' can be used to select all spines.
+        spine_props (dict): Spine properties. Each property can be given as an appropriate type and will be applied to
+            all spines. Alternatively, a list may be given for each property so that each spine is assigned different
+            properties.
+                linewidth (int): Spine width(s)
+                edgecolor (str|tuple): Spine color(s) as hex string or RGB tuple
+        hide_other_spines (bool): Hide unspecified spines if True.
+        duplicate_ticks (bool): Duplicate ticks when both opposite sides of spines are visible if True.
+
+    Returns:
+        None
+    """
     spines = ax.spines
     spines_dict = {'left': ax.yaxis, 'bottom': ax.xaxis, 'right': ax.yaxis, 'top': ax.xaxis}
     # Get appropriate spine object(s) from input
@@ -191,19 +189,29 @@ def set_spine_props(ax, which_spines,
         warnings.warn("Trying to set spine properties but no spines were specififed.")
 
 
-def set_tick_props(ax, which_axes,
-                   tick_props=dict(size=None, width=None, _color=None,
-                                   direction=None, pad=None,
-                                   labelsize=None, labelcolor=None),
-                   tick_type='major'):
-    '''
-    Set properties for axes ticks
-    :param ax: [matplotlib.axes] Axis object
-    :param which_axes: [str] 'x', 'y', 'both' OR [matplotlib.axis.XAxis, matplotlib.axis.YAxis] (optionally as list)
-    :param ticks_props: [dict] Tick properties
-    :param tick_type: [str] 'major' or 'minor'
-    :return: None
-    '''
+def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
+    """Set properties for axes ticks
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes as integers, names or objects.
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'x' or 'y', or 'both' can be used to select both axes.
+        tick_props (dict): Tick properties. Each property can be given as an appropriate type and will be applied to
+            all ticks. Alternatively, a list may be given for each property so that each tick collection is assigned
+            different properties.
+                size (int|float): Tick mark size(s)
+                width (int|float): Tick mark width(s)
+                color (str|tuple): Tick mark color(s) as hex string(s) or RGB tuple(s)
+                direction (str): Tick mark direction: 'in' or 'out'
+                pad (int|float): Padding between tick labels and tick marks
+                labelsize (int|float): Tick label size(s)
+                labelcolor (str|tuple): Tick label color(s) as hex string(s) or RGB tuple(s)
+        tick_type (str): 'major' or 'minor'.
+
+    Returns:
+        None
+    """
     # Get appropriate axis/axes objects from input
     axes_dict = {'x': ax.xaxis, 'y': ax.yaxis}
     which_axes = _get_plot_elements(ax, which_axes, axes_dict,
@@ -219,15 +227,23 @@ def set_tick_props(ax, which_axes,
         warnings.warn("Trying to set tick properties but no axes were specified.")
 
 
-def set_label_props(ax, which_labels,
-                    label_props=dict(fontsize=None, fontname=None, color=None)):
-    '''
-    Set properties for axes labels
-    :param ax: [matplotlib.axes] Axis object
-    :param which_axes: [str] 'x', 'y', 'both' OR [matplotlib.axis.XAxis, matplotlib.axis.YAxis] (optionally as list)
-    :param label_props: [dict] Label properties
-    :return: None
-    '''
+def set_label_props(ax, which_labels, label_props):
+    """Set properties for axes labels
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes as integers, names or objects.
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'x' or 'y', or 'both' can be used to select both axes.
+        label_props (dict): Label properties. Each property can be given as an appropriate type and applied to all labels.
+            Alternatively, a list may be given for each property so that each label is assigned different properties.
+                fontsize (float): Label font size(s)
+                fontname (str): Label font(s)
+                color (str|tuple): Label color(s) as hex string(s) or RGB tuple(s)
+
+    Returns:
+        None
+    """
     # Check if there's mathtext if user requests a custom font as it will change font for
     # all mathtext in the plot
     if('fontname' in label_props):
@@ -244,19 +260,27 @@ def set_label_props(ax, which_labels,
         warnings.warn("Trying to set label properties but no axes were specified.")
 
 
-def set_line_props(ax, which_lines,
-                    line_props=dict(linewidth=None, color=None, linestyle=None),
-                    **kwargs):
-    '''
-    Set properties for plotted lines
-    :param ax: [matplotlib.axes] Axis object
-    :param which_lines: [str|list] indexes ('colon-dash-comma separated numbers')
-                        [str] 'all'
-                        [matplotlib.lines.Line2D] (optionally as list)
-    :param line_props: [dict] Line properties
-    :param kwargs:
-    :return: None
-    '''
+def set_line_props(ax, which_lines, line_props, **kwargs):
+    """Set properties for lines
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_lines (int|str|matplotlib.lines.Line2D) line index(es) as integers or objects.
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all lines.
+        line_props (dict): Line properties. Each property can be given as an appropriate type and applied to all lines.
+            Alternatively, a list may be given for each property so that each line is assigned different properties.
+                linewidth (int|float): Line width(s)
+                color (str|tuple): Line color(s) as hex string(s) or RGB tuple(s)
+                linestyle (str): Line style(s): '-', '--', ':'
+        **kwargs: Semi-hidden parameters the typical user does not need to worry about, which are used to
+            distinguish between plotted lines and legend lines.
+                lines_master (matplotlib.lines.Line2D): Line objects to target (defaults to ax.lines)
+                lines_name (str): Name of lines to be passed to error message
+
+    Returns:
+        None
+    """
     lines_master = kwargs.get('lines_master', ax.lines)
     lines_name = kwargs.get('lines_name', 'line')
     # Get appropriate line object(s) from input
@@ -270,22 +294,34 @@ def set_line_props(ax, which_lines,
         warnings.warn("Trying to set line properties but no lines were specified.")
 
 
-def set_marker_props(ax, which_markers,
-                     marker_props=dict(sizes=None, linewidth=None, linestyle=None,
-                                      facecolor=None, edgecolor=None, symbols=None),
-                     **kwargs):
-    '''
-    Set properties for plotted markers
-    :param ax: [matplotlib.axes] Axis object
-    :param which_markers: [str, list] indexes ('colon-dash-comma separated numbers')
-                          [str] 'all'
-                          [matplotlib.collections.PathCollection] (optionally as list)
-    :param marker_props: [dict] Marker properties
-        sizes, linewidth, linestyle, facecolor, edgecolor can be nested lists in order to
-        change properties of individual markers within marker collections
-    :param kwargs:
-    :return: None
-    '''
+def set_marker_props(ax, which_markers, marker_props, **kwargs):
+    """Set properties for markers
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_markers (int|str|matplotlib.collections.PathCollection) marker collection/set index(es) as integers or
+            objects.
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all marker collections.
+        marker_props (dict): Marker collection properties. Each property can be given as an appropriate type and
+            applied to all marker collections. Alternatively, a list may be given for each property so that each marker
+            collection is assigned different properties. Nested lists may also be given to change the properties of
+            individual markers within collections.
+                sizes (list): Marker size(s) applied to each marker within a collection
+                linewidth (int|float): Marker line width(s)
+                linestyle (str): Marker collection line style(s): '-', '--', ':'
+                facecolor (str|tuple): Marker collection face color(s) as hex string(s) or RGB tuple(s)
+                edgecolor (str|tuple): Marker collection line color(s) as hex string(s) or RGB tuple(s)
+                symbols (str|matplotlib.markers.MarkerStyle): Marker symbols
+        **kwargs: Semi-hidden parameters the typical user does not need to worry about, which are used to
+            distinguish between plotted lines and legend lines.
+                markers_master (matplotlib.collections.PathCollection): Marker collection objects to target
+                    (defaults to ax.collections)
+                markers_name (str): Name of markers to be passed to error message
+
+    Returns:
+        None
+    """
     markers_master = kwargs.get('markers_master', ax.collections)
     markers_name = kwargs.get('markers_name', 'marker collection')
     # Get appropriate marker object(s) from input
@@ -309,19 +345,27 @@ def set_marker_props(ax, which_markers,
         warnings.warn("Trying to set marker properties but no markers were specified.")
 
 
-def set_text_props(ax, which_texts,
-                   text_props=dict(fontsize=None, color=None, fontname=None),
-                   **kwargs):
-    '''
-    Set properties for plotted texts
-    :param ax: [matplotlib.axes] Axis object
-    :param which_texts: [str, list] indexes ('colon-dash-comma separated numbers')
-                        [str] 'all'
-                        [matplotlib.text.Text] (optionally as list)
-    :param line_props: [dict] Text properties
-    :param kwargs:
-    :return: None
-    '''
+def set_text_props(ax, which_texts, text_props, **kwargs):
+    """Set properties for texts
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_texts (int|str|matplotlib.text.Text) text index(es) as integers or objects.
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all texts.
+        text_props (dict): Text properties. Each property can be given as an appropriate type and applied to all lines.
+            Alternatively, a list may be given for each property so that each text is assigned different properties.
+                fontsize (int|float): Text font size(s)
+                color (str|tuple): Text font color(s) as hex string(s) or RGB tuple(s)
+                fontname (str): Text font(s)
+        **kwargs: Semi-hidden parameters the typical user does not need to worry about, which are used to
+            distinguish between plotted texts and legend texts.
+                texts_master (matplotlib.text.Text): Text objects to target (defaults to ax.texts)
+                texts_name (str): Name of texts to be passed to error message
+
+    Returns:
+        None
+    """
     texts_master = kwargs.get('texts_master', ax.texts)
     texts_name = kwargs.get('texts_name', 'text')
     # Get appropriate text object(s) from input
@@ -336,63 +380,78 @@ def set_text_props(ax, which_texts,
         warnings.warn("Trying to set text properties but no texts were specified.")
 
 
-def set_legend_props(ax, which_lines, which_markers, which_texts,
-                        line_props=dict(),
-                        marker_props=dict(),
-                        text_props=dict(),
-                        legend_props=dict()):
-    '''
-    Set properties for plotted legend
-    :param ax: [matplotlib.axes] Axis object
-
-    :param which_lines: [str|list] indexes ('colon-dash-comma separated numbers')
-                        [str] 'all'
-                        [matplotlib.lines.Line2D] (optionally as list)
-    :param which_markers: [str, list] indexes ('colon-dash-comma separated numbers')
-                          [str] 'all'
-                          [matplotlib.collections.PathCollection] (optionally as list)
-    :param which_texts: [str, list] indexes ('colon-dash-comma separated numbers')
-                        [str] 'all'
-                        [matplotlib.text.Text] (optionally as list)
-
-    line_props: linewidth=None, color=None, linestyle=None
-
-    marker_props: sizes=None, linewidth=None, linestyle=None,
-                  facecolor=None, edgecolor=None, paths=None
-                  sizes = list
-
-    text_props: fontsize=None, color=None
-
-    legend_props: loc=None, ncol=None, columnspacing=None, labelspacing=None,
-                  handlelength=None, numpoints=None, scatterpoints=None,
-                  frameon=None
-
-    :return: None
+def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
+                        line_props=None, marker_props=None, text_props=None,
+                        frame_props=None):
+    '''Set properties for legend lines, markers, texts and/or frame. Changes to plotted lines and markers before this
+    function call are reflected in the legend lines/symbols automatically.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_lines (int|str|matplotlib.lines.Line2D) line index(es) as integers or objects.
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all lines.
+        which_markers (int|str|matplotlib.collections.PathCollection) marker collection/set index(es) as integers or
+            objects.
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all marker collections.
+        which_texts (int|str|matplotlib.text.Text) text index(es) as integers or objects.
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all texts.
+        line_props (dict): Line properties. Each property can be given as an appropriate type and applied to all lines.
+            Alternatively, a list may be given for each property so that each line is assigned different properties.
+                linewidth (int|float): Line width(s)
+                color (str|tuple): Line color(s) as hex string(s) or RGB tuple(s)
+                linestyle (str): Line style(s): '-', '--', ':'
+        marker_props (dict): Marker collection properties. Each property can be given as an appropriate type and
+            applied to all marker collections. Alternatively, a list may be given for each property so that each marker
+            collection is assigned different properties. Nested lists may also be given to change the properties of
+            individual markers within collections.
+                sizes (list): Marker size(s) applied to each marker within a collection
+                linewidth (int|float): Marker line width(s)
+                linestyle (str): Marker collection line style(s): '-', '--', ':'
+                facecolor (str|tuple): Marker collection face color(s) as hex string(s) or RGB tuple(s)
+                edgecolor (str|tuple): Marker collection line color(s) as hex string(s) or RGB tuple(s)
+                symbols (str|matplotlib.markers.MarkerStyle): Marker symbols
+        text_props (dict): Text properties. Each property can be given as an appropriate type and applied to all lines.
+            Alternatively, a list may be given for each property so that each text is assigned different properties.
+                fontsize (int|float): Text font size(s)
+                color (str|tuple): Text font color(s) as hex string(s) or RGB tuple(s)
+                fontname (str): Text font(s)
+        legend_props (dict): Legend frame properties. See matplotlib.legend documentation for full properties list.
+            loc (int):
+            ncol (int): Number of columns
+            frameon (bool): Frame border is visible if True
+            columnspacing (float): Spacing between columns
+            labelspacing (float): Spacing between symbols and text labels
+            handlelength (float): Length of handles (only applicable for lines)
+            numpoints (float): Number of symbols (only applicable for markers used on a line plot)
+            scatterpoints (int): Number of symbols (only applicable on a scatter plot)
+            bbox_to_anchor (tuple|list): Coords to position legend: (x0, y0)
     '''
 
     # Assign legend properties - reverts to default values if not specified
     legend = ax.get_legend()
-    try:
-        # This accesses private variables so updates to matplotlib may break it
-        # Therefore check if can still access these private variables
-        legend_props['loc'] = legend_props.get('loc', legend._loc)
-        legend_props['ncol'] = legend_props.get('ncol', legend._ncol)
-        legend_props['frameon'] = legend_props.get('frameon', legend._drawFrame)
-    except AttributeError as e:
-        print("Can not access private variable {}. Matplotlib may have been updated and changed this variable. "
-              "If you want to set legend properties this variable must now be given in 'legend_props'.".format(re.findall("'_.+'", e.args[0])[-1]))
-        return
-    else:
-        legend_props['columnspacing'] = legend_props.get('columnspacing', legend.columnspacing)
-        legend_props['labelspacing'] = legend_props.get('labelspacing', legend.labelspacing)
-        legend_props['handlelength'] = legend_props.get('handlelength', legend.handlelength)
-        legend_props['numpoints'] = legend_props.get('numpoints', legend.numpoints)
-        legend_props['scatterpoints'] = legend_props.get('scatterpoints', legend.scatterpoints)
     # Get existing legend bbox coords and convert to axes coords
     bbox_axcoords = ax.transAxes.inverted().transform(legend.get_bbox_to_anchor().get_points())
     bbox_x0, bbox_y0 = bbox_axcoords[0][0], bbox_axcoords[0][1]
-    # Redraw legend using new line and marker properties and old legend properties
-    ax.legend(bbox_to_anchor=(bbox_x0, bbox_y0), **legend_props)
+    # Position new legend in same place as old one if no frame properties defined or just no 'bbox'_to'anchor' is defined
+    # Otherwise there would be no easy way of specifying that the new legend should be placed where the old one was
+    if(frame_props is None):
+        frame_props = {}  # Initialise frame properties dictionary
+        frame_props['bbox_to_anchor'] = (bbox_x0, bbox_y0)
+    else:
+        frame_props['bbox_to_anchor'] = frame_props.get('bbox_to_anchor', (bbox_x0, bbox_y0))
+    # Set frame properties regardless of whether the dictionary is given or individual properties are set
+    # This is done because a new legend is plotted no matter what so need to send it at least coords
+    for var_name in ['loc', 'ncol']:
+        frame_props[var_name] = _get_frame_props(legend, frame_props, var_name, True)
+    frame_props['frameon'] = _get_frame_props(legend, frame_props, 'drawFrame', True)
+    for var_name in ['columnspacing', 'labelspacing', 'handlelength',
+                     'numpoints', 'scatterpoints']:
+        frame_props[var_name] = _get_frame_props(legend, frame_props, var_name)
+
+    # Plot new legend with updated line and marker properties if they've been changed and specified legend properties
+    ax.legend(**frame_props)
 
     # Get appropriate lines and markers from new legend handles
     lines_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.lines.Line2D)]
@@ -743,6 +802,20 @@ def _get_marker_paths(symbols, top_level=True):
             else:
                 paths[i] = m.get_path().transformed(m.get_transform())
     return paths
+
+
+def _get_frame_props(legend, frame_props, var_name, private=False):
+    try:
+        var = getattr(legend, '_' + var_name if private else var_name)
+    except AttributeError as e:
+        warnings.warn("Can not access private variable {}. Matplotlib may have been updated and changed this variable. "
+                  "If you want to set legend properties this variable must now be given in 'frame_props'.".format(re.findall("'_.+'", e.args[0])[-1]))
+        var = None
+
+    if(frame_props):
+        return frame_props.get(var_name, var)
+    else:
+        return var
 
 
 def _set_props(ax, obj, **kwargs):
