@@ -13,11 +13,13 @@ from utils import utils
 
 # ToDo: Main
 
-# make set_legend_props select between lines, marker and texts more intelligently
-# make get functions to accompany set functions
-# make docstrings user-friendly - done main functions
+# make docstrings user-friendly - done most functions
+# make rest of get functions to accompany set functions
+# add custom exceptions to get functions?
+# add custom exceptions to set functions?
+# add memoization for caching of default parameters?
 
-# set custom colour cycle for lines to nice sequence - use ColorMapper module from laptop!
+# set custom colour cycle for lines to nice sequence - integrate ColorMapper module as utils package
 
 
 class DotDict(dict):
@@ -25,18 +27,20 @@ class DotDict(dict):
     Dictionary object with dot notation access
     '''
     def __getattr__(self, attr):
+        if(attr not in self):
+            raise KeyError("'{}' is not an attribute of {}".format(attr, type(self).__name__))
         return self.get(attr)
     __setattr__= dict.__setitem__
     __delattr__= dict.__delitem__
 
 
-def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks='both',
+def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='all',
                    which_spines=('left', 'bottom'),
                    which_lines='all', which_markers='all', which_texts='all',
-                   which_legend_handles='all', which_legend_labels='all',
+                   which_legend_lines='all', which_legend_markers='all', which_legend_texts='all',
                    change_log_scales=True):
 
-    # Convert dictionary to DotDict which is a dict wrapper that allows dot notation
+    # Convert dictionary to DotDict- a dict wrapper that allows dot notation
     defaults_dict = DotDict(_load_defaults())
     # Set defaults that are dependent on number of columns requested
     defaults_dict = _set_params_defaults(defaults_dict, num_cols)
@@ -53,84 +57,82 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='both', which_ticks=
 
     # Apply changes to all axis objects in figure
     for ax in fig.axes:
+        # Set axes spine properties using default spine properties
+        if(which_spines):
+            set_spine_props(ax, ['left', 'bottom'], spine_props=dict(
+                    linewidth=defaults_dict.spine_width, edgecolor=['blue', 'red']))
 
         # Set axes label properties using default label properties
-        if(which_labels is not None):
-            set_label_props(ax, 'all',
-                            label_props=dict(fontsize=defaults_dict.label_size*3, fontname=None, color=None))
+        if(which_labels):
+            set_label_props(ax, 'all', label_props=dict(
+                    fontsize=defaults_dict.label_size*3, fontname=None, color=None))
 
         # Set axes ticks and ticklabel properties using default tick and ticklabel properties
-        if(which_ticks is not None):
-            set_tick_props(ax, 'all',
-                           tick_props=dict(size=defaults_dict.majortick_size, width=defaults_dict.line_width, color='green',
-                                           direction=defaults_dict.tick_dir, pad=defaults_dict.ticklabel_pad,
-                                           labelsize=defaults_dict.ticklabel_size, labelcolor='purple'),
-                           tick_type='major')
-            set_tick_props(ax, 'all',
-                           tick_props=dict(size=defaults_dict.minortick_size, width=defaults_dict.line_width, color='blue',
-                                           direction=defaults_dict.tick_dir, pad=defaults_dict.ticklabel_pad,
-                                           labelsize=defaults_dict.ticklabel_size, labelcolor='red'),
-                           tick_type='minor')
-
+        if(which_ticks):
+            set_tick_props(ax, 'all', tick_props=dict(
+                    size=defaults_dict.majortick_size, width=defaults_dict.line_width, color='green',
+                    direction=defaults_dict.tick_dir, pad=defaults_dict.ticklabel_pad,
+                    labelsize=defaults_dict.ticklabel_size, labelcolor='purple'),
+                    tick_type='major')
+            set_tick_props(ax, 'all', tick_props=dict(
+                    size=defaults_dict.minortick_size, width=defaults_dict.line_width, color='blue',
+                    direction=defaults_dict.tick_dir, pad=defaults_dict.ticklabel_pad,
+                    labelsize=defaults_dict.ticklabel_size, labelcolor='red'),
+                    tick_type='minor')
+        # Set line properties using default line properties
+        if(which_lines):
+            if(ax.lines):
+                set_line_props(ax, [0,1], line_props=dict(
+                        linewidth=defaults_dict.line_width*2, linestyle='-',
+                        color=defaults_dict.col_cycle))
+        # Set marker properties using default marker properties
+        if(which_markers):
+            if(ax.collections):
+                set_marker_props(ax, '1', marker_props=dict(
+                        sizes=100,#defaults_dict.marker_size,
+                        linewidth=defaults_dict.line_width, linestyle=[['-', ':']],
+                        facecolor=[defaults_dict.col_cycle], edgecolor=[defaults_dict.col_cycle],
+                        symbols='o'))
+        # Set text properties using default text properties
+        if(which_texts):
+            set_text_props(ax, 'all', text_props=dict(
+                    fontsize=defaults_dict.texts_size, fontname='Arial',
+                    color='green'))
+        # Set legend properties using old legend properties and updated plotted lines and markers properties
+        if(which_legend_lines or which_legend_markers or which_legend_texts):
+            if(ax.get_legend() and (ax.lines or ax.collections)):
+                set_legend_props(ax, 'all', None, '0:1',
+                                 line_props=dict(linewidth=10),
+                                 marker_props=dict(),
+                                 text_props={'color': 'blue'})
         # Set axes log scale properties
         if(change_log_scales):
             set_log_exponents(ax, 'all')
-        # Set axes spine properties using default spine properties
-        if(which_spines is not None):
-            set_spine_props(ax, 'all',
-                            spine_props=dict(
-                                             linewidth=defaults_dict.spine_width,
-                                             edgecolor=['blue', 'red']))
-        # Set line properties using default line properties
-        if(which_lines is not None):
-            if(ax.lines):
-                set_line_props(ax, [0,1],
-                               line_props=dict(
-                                               linewidth=defaults_dict.line_width*2,
-                                               color=defaults_dict.col_cycle,
-                                               linestyle='-'))
-        # Set marker properties using default marker properties
-        if(which_markers is not None):
-            if(ax.collections):
-                set_marker_props(ax, '1',
-                                      marker_props=dict(
-                                              sizes=100,#defaults_dict.marker_size,
-                                              linewidth=defaults_dict.line_width,
-                                              linestyle=[['-', ':']],
-                                              facecolor=[defaults_dict.col_cycle],
-                                              edgecolor=[defaults_dict.col_cycle],
-                                             symbols='o'))
-        # Set text properties using default text properties
-        if(which_texts is not None):
-            set_text_props(ax, 'all',
-                                text_props=dict(
-                                        fontsize=defaults_dict.texts_size,
-                                        color='green',
-                                        fontname='Arial'))
-        # Set legend properties using old legend properties and new lines and markers properties
-        if(ax.get_legend() and (ax.lines or ax.collections)):
-            set_legend_props(ax, 'all', 'all', '0:1',
-                             text_props={'color': 'blue'}
-                             )
 
 
 def set_figure_size(fig, fig_width, fig_height):
-    '''
-    Set figure size
-    :param fig: [matplotlib.figure.Figure]
-    :param fig_width: [float]
-    :param fig_height: [float]
-    :return: None
-    '''
+    """Set figure size by calling private function
+    Args:
+        fig (matplotlib.figure.Figure)
+        fig_width (float)
+        fig_height (float)
+
+    Returns:
+        None
+    """
     _set_figure_size(fig, fig_width, fig_height)
 
 
 def set_mathtext_font(font):
-    '''
-    Set mathtext font which defines how text within $$ will look. Some custom fonts may not work correctly.
-    :param font: [str] Font name
-    :return: None
-    '''
+    """Set mathtext font (within rcParams) that defines how text within $...$ will look. Some custom fonts may not work
+     correctly.
+
+    Args:
+        font (str): Name of font to be used for mathtext
+
+    Returns:
+        None
+    """
     if(font in ['stixsans', 'stix', 'cm']):
         matplotlib.rcParams['mathtext.fontset'] = font
     else:
@@ -141,13 +143,15 @@ def set_mathtext_font(font):
 
 
 def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, duplicate_ticks=False):
-    """Set properties for spines.
+    """Set properties of spines.
 
     Args:
-        ax (matplotlib.axes): Axis object.
-        which_spines (int|str|matplotlib.spines.Spine): spine index(es) as integers, names or objects.
+        ax (matplotlib.axes): Axis object containing spines.
+        which_spines (int|str|matplotlib.spines.Spine): Spine index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'left', 'bottom', 'right', 'top', or 'all' can be used to select all spines.
+            Comma-dash-colon separated strings can be used to select axes in 'left', 'bottom', 'right', 'top' order.
+                e.g. '0' = 'left', '0,1' = 'left, bottom', '1:3' = 'bottom, right, top'
         spine_props (dict): Spine properties. Each property can be given as an appropriate type and will be applied to
             all spines. Alternatively, a list may be given for each property so that each spine is assigned different
             properties.
@@ -159,34 +163,29 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
     Returns:
         None
     """
-    spines = ax.spines
-    spines_dict = {'left': ax.yaxis, 'bottom': ax.xaxis, 'right': ax.yaxis, 'top': ax.xaxis}
-    # Get appropriate spine object(s) from input
-    which_spines = _get_plot_elements(ax, which_spines, ax.spines,
-                                      'spine', matplotlib.spines.Spine,
-                                      ['left', 'bottom', 'right', 'top'])
-    # Get list of spines unspecified which will be made invisible
-    which_spines_invis = [v for k,v in spines.items() if v not in which_spines]
-
-    # Turn off all spines and ticks and labels initially
-    for ax_label, ax_dir in spines_dict.items():
-        ax_dir.set_tick_params(which='both', **{ax_label: 'off'}, **{'label'+ax_label: 'off'})
-    # Turn on requested spines and ticks and labels
-    for sp in which_spines:
-        ax_label = list(ax.spines.keys())[list(spines.values()).index(sp)]
-        ax_dir = spines_dict[ax_label]
-        ax_dir.set_tick_params(which='both', **{ax_label: 'on'}, **{'label'+ax_label: 'on'})
-        # Avoid duplication of ticks on both sides of plot if requested
-        if not(duplicate_ticks):
-            ax_dir.set_ticks_position(ax_label)
-
-    if(spine_props and which_spines):
-        _set_props(ax, which_spines, **spine_props)
+    # Get appropriate spine object(s) from input as list
+    which_spines = _get_plot_objects(which_spines, spine_props, ax.spines,
+                                  'spine', ['left', 'bottom', 'right', 'top'])
+    if(which_spines):
+        spines = ax.spines
+        spines_dict = {'left': ax.yaxis, 'bottom': ax.xaxis, 'right': ax.yaxis, 'top': ax.xaxis}
+        # Get list of spines unspecified which will be made invisible
+        which_spines_invis = [v for k,v in spines.items() if v not in which_spines]
+        # Turn off all spines and ticks and labels initially
+        for ax_label, ax_dir in spines_dict.items():
+            ax_dir.set_tick_params(which='all', **{ax_label: 'off'}, **{'label'+ax_label: 'off'})
+        # Turn on requested spines and ticks and labels
+        for sp in which_spines:
+            ax_label = list(ax.spines.keys())[list(spines.values()).index(sp)]
+            ax_dir = spines_dict[ax_label]
+            ax_dir.set_tick_params(which='all', **{ax_label: 'on'}, **{'label'+ax_label: 'on'})
+            # Avoid duplication of ticks on both sides of plot if requested
+            if not(duplicate_ticks):
+                ax_dir.set_ticks_position(ax_label)
+        _set_props(which_spines, **spine_props)
         # Hide unspecified spines
         if(hide_other_spines):
-            _set_props(ax, which_spines_invis, visible=False)
-    else:
-        warnings.warn("Trying to set spine properties but no spines were specififed.")
+            _set_props(which_spines_invis, visible=False)
 
 
 def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
@@ -194,9 +193,11 @@ def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
 
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes as integers, names or objects.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
             Given as a specified type OR list of a specified type.
-            Names accepted are 'x' or 'y', or 'both' can be used to select both axes.
+            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+            Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
+                e.g. '0' = 'x', '0,1' = 'x, y'
         tick_props (dict): Tick properties. Each property can be given as an appropriate type and will be applied to
             all ticks. Alternatively, a list may be given for each property so that each tick collection is assigned
             different properties.
@@ -212,19 +213,14 @@ def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
     Returns:
         None
     """
-    # Get appropriate axis/axes objects from input
-    axes_dict = {'x': ax.xaxis, 'y': ax.yaxis}
-    which_axes = _get_plot_elements(ax, which_axes, axes_dict,
-                                    'tick',
-                                    (matplotlib.axis.XAxis, matplotlib.axis.YAxis),
-                                    axes_dict.keys())
+    # Get appropriate axis/axes objects from input as list
+    which_axes = _get_plot_objects(which_axes, tick_props, {'x': ax.xaxis, 'y': ax.yaxis},
+                                    tick_type + ' tick', ['x', 'y'])
     # Set tick properties
-    if(tick_props and which_axes):
+    if(which_axes):
         tick_props = utils.remove_empty_keys(tick_props)
         for wa in which_axes:
             wa.set_tick_params(tick_type, **tick_props)
-    else:
-        warnings.warn("Trying to set tick properties but no axes were specified.")
 
 
 def set_label_props(ax, which_labels, label_props):
@@ -232,9 +228,11 @@ def set_label_props(ax, which_labels, label_props):
 
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes as integers, names or objects.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
             Given as a specified type OR list of a specified type.
-            Names accepted are 'x' or 'y', or 'both' can be used to select both axes.
+            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+            Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
+                e.g. '0' = 'x', '0,1' = 'x, y'
         label_props (dict): Label properties. Each property can be given as an appropriate type and applied to all labels.
             Alternatively, a list may be given for each property so that each label is assigned different properties.
                 fontsize (float): Label font size(s)
@@ -244,20 +242,16 @@ def set_label_props(ax, which_labels, label_props):
     Returns:
         None
     """
-    # Check if there's mathtext if user requests a custom font as it will change font for
-    # all mathtext in the plot
-    if('fontname' in label_props):
-        _check_mathtext(ax, label_props['fontname'])
-    # Get appropriate axis label(s) objects from input
-    labels_dict = {'x': ax.xaxis.label, 'y': ax.yaxis.label}
-    which_labels = _get_plot_elements(ax, which_labels, labels_dict,
-                                    'label', matplotlib.text.Text,
-                                      labels_dict.keys())
+    # Get appropriate axis label(s) objects from input as list
+    which_labels = _get_plot_objects(which_labels, label_props, {'x': ax.xaxis.label, 'y': ax.yaxis.label},
+                                      'label', ['x', 'y'])
     # Set label properties
-    if(label_props and which_labels):
-        _set_props(ax, which_labels, **label_props)
-    else:
-        warnings.warn("Trying to set label properties but no axes were specified.")
+    if(which_labels):
+        # Check if there's mathtext if user requests a custom font as it will change font for
+        # all mathtext in the plot
+        if('fontname' in label_props):
+            _check_mathtext(ax, label_props['fontname'])
+        _set_props(which_labels, **label_props)
 
 
 def set_line_props(ax, which_lines, line_props, **kwargs):
@@ -265,9 +259,11 @@ def set_line_props(ax, which_lines, line_props, **kwargs):
 
     Args:
         ax (matplotlib.axes): Axis object.
-        which_lines (int|str|matplotlib.lines.Line2D) line index(es) as integers or objects.
+        which_lines (int|str|matplotlib.lines.Line2D): Line index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all lines.
+            Comma-dash-colon separated strings can be used to select lines in plotted order.
+                e.g. '0' = '1st line', '0,1' = '1st, 2nd line', '1:3' = '2nd, 3rd, 4th line'
         line_props (dict): Line properties. Each property can be given as an appropriate type and applied to all lines.
             Alternatively, a list may be given for each property so that each line is assigned different properties.
                 linewidth (int|float): Line width(s)
@@ -283,15 +279,12 @@ def set_line_props(ax, which_lines, line_props, **kwargs):
     """
     lines_master = kwargs.get('lines_master', ax.lines)
     lines_name = kwargs.get('lines_name', 'line')
-    # Get appropriate line object(s) from input
-    which_lines = _get_plot_elements(ax, which_lines, lines_master,
-                                     lines_name,
-                                     matplotlib.lines.Line2D)
+    # Get appropriate line object(s) from input as list
+    which_lines = _get_plot_objects(which_lines, line_props, lines_master,
+                                     lines_name)
     # Set line properties
-    if(line_props and which_lines):
-        _set_props(ax, which_lines, **line_props)
-    else:
-        warnings.warn("Trying to set line properties but no lines were specified.")
+    if(which_lines):
+        _set_props(which_lines, **line_props)
 
 
 def set_marker_props(ax, which_markers, marker_props, **kwargs):
@@ -299,10 +292,11 @@ def set_marker_props(ax, which_markers, marker_props, **kwargs):
 
     Args:
         ax (matplotlib.axes): Axis object.
-        which_markers (int|str|matplotlib.collections.PathCollection) marker collection/set index(es) as integers or
-            objects.
+        which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all marker collections.
+            Comma-dash-colon separated strings can be used to select marker collections in plotted order.
+                e.g. '0' = '1st marker col', '0,1' = '1st, 2nd marker col', '1:3' = '2nd, 3rd, 4th marker col'
         marker_props (dict): Marker collection properties. Each property can be given as an appropriate type and
             applied to all marker collections. Alternatively, a list may be given for each property so that each marker
             collection is assigned different properties. Nested lists may also be given to change the properties of
@@ -324,25 +318,21 @@ def set_marker_props(ax, which_markers, marker_props, **kwargs):
     """
     markers_master = kwargs.get('markers_master', ax.collections)
     markers_name = kwargs.get('markers_name', 'marker collection')
-    # Get appropriate marker object(s) from input
-    which_markers = _get_plot_elements(ax, which_markers, markers_master,
-                                       markers_name,
-                                       matplotlib.collections.PathCollection)
+    # Get appropriate marker object(s) from input as list
+    which_markers = _get_plot_objects(which_markers, marker_props, markers_master,
+                                       markers_name)
+    if(which_markers):
+        # Convert sizes input to a nested list as this is the input for each collection in set_sizes()
+        # This means incidentally that individual marker sizes can be set within each collection
+        if('sizes' in marker_props):
+            if(type(marker_props['sizes']) is not list or not any([isinstance(i, list) for i in marker_props['sizes']])):
+                marker_props['sizes'] = [[s] for s in utils.get_iterable(marker_props['sizes'])]
 
-    # Convert sizes input to a nested list as this is the input for each collection in set_sizes()
-    # This means incidentally that individual marker sizes can be set within each collection
-    if('sizes' in marker_props):
-        if(type(marker_props['sizes']) is not list or not any([isinstance(i, list) for i in marker_props['sizes']])):
-            marker_props['sizes'] = [[s] for s in utils.get_iterable(marker_props['sizes'])]
-
-    if('symbols' in marker_props):
-        marker_props['paths'] = _get_marker_paths(utils.get_iterable(marker_props['symbols']))
-        marker_props.pop('symbols')  # Remove symbols key as it is now paths
-    # Set marker properties
-    if(marker_props and which_markers):
-        _set_props(ax, which_markers, **marker_props)
-    else:
-        warnings.warn("Trying to set marker properties but no markers were specified.")
+        if('symbols' in marker_props):
+            marker_props['paths'] = _get_marker_paths(utils.get_iterable(marker_props['symbols']))
+            marker_props.pop('symbols')  # Remove symbols key as it is now paths
+        # Set marker properties
+        _set_props(which_markers, **marker_props)
 
 
 def set_text_props(ax, which_texts, text_props, **kwargs):
@@ -350,9 +340,11 @@ def set_text_props(ax, which_texts, text_props, **kwargs):
 
     Args:
         ax (matplotlib.axes): Axis object.
-        which_texts (int|str|matplotlib.text.Text) text index(es) as integers or objects.
+        which_texts (int|str|matplotlib.text.Text): Text index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all texts.
+            Comma-dash-colon separated strings can be used to select texts in plotted order.
+                e.g. '0' = '1st text', '0,1' = '1st, 2nd text', '1:3' = '2nd, 3rd, 4th text'
         text_props (dict): Text properties. Each property can be given as an appropriate type and applied to all lines.
             Alternatively, a list may be given for each property so that each text is assigned different properties.
                 fontsize (int|float): Text font size(s)
@@ -368,16 +360,13 @@ def set_text_props(ax, which_texts, text_props, **kwargs):
     """
     texts_master = kwargs.get('texts_master', ax.texts)
     texts_name = kwargs.get('texts_name', 'text')
-    # Get appropriate text object(s) from input
-    which_texts = _get_plot_elements(ax, which_texts, texts_master,
-                                     texts_name,
-                                     matplotlib.text.Text)
+    # Get appropriate text object(s) from input as list
+    which_texts = _get_plot_objects(which_texts, text_props, texts_master,
+                                     texts_name)
 
     # Set text properties
-    if(text_props and which_texts):
-        _set_props(ax, which_texts, **text_props)
-    else:
-        warnings.warn("Trying to set text properties but no texts were specified.")
+    if(which_texts):
+        _set_props(which_texts, **text_props)
 
 
 def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
@@ -385,18 +374,14 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
                         frame_props=None):
     '''Set properties for legend lines, markers, texts and/or frame. Changes to plotted lines and markers before this
     function call are reflected in the legend lines/symbols automatically.
+
     Args:
         ax (matplotlib.axes): Axis object.
-        which_lines (int|str|matplotlib.lines.Line2D) line index(es) as integers or objects.
+        which_lines/which_markers/which_texts (int|str|matplotlib objects): Object index(es).
             Given as a specified type OR list of a specified type.
-            'all' can be used to select all lines.
-        which_markers (int|str|matplotlib.collections.PathCollection) marker collection/set index(es) as integers or
-            objects.
-            Given as a specified type OR list of a specified type.
-            'all' can be used to select all marker collections.
-        which_texts (int|str|matplotlib.text.Text) text index(es) as integers or objects.
-            Given as a specified type OR list of a specified type.
-            'all' can be used to select all texts.
+            'all' can be used to select all objects.
+            Comma-dash-colon separated strings can be used to select objects in plotted order.
+                e.g. '0' = '1st object', '0,1' = '1st, 2nd object', '1:3' = '2nd, 3rd, 4th object'
         line_props (dict): Line properties. Each property can be given as an appropriate type and applied to all lines.
             Alternatively, a list may be given for each property so that each line is assigned different properties.
                 linewidth (int|float): Line width(s)
@@ -417,7 +402,7 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
                 fontsize (int|float): Text font size(s)
                 color (str|tuple): Text font color(s) as hex string(s) or RGB tuple(s)
                 fontname (str): Text font(s)
-        legend_props (dict): Legend frame properties. See matplotlib.legend documentation for full properties list.
+        frame_props (dict): Legend frame properties. See matplotlib.legend documentation for full properties list.
             loc (int):
             ncol (int): Number of columns
             frameon (bool): Frame border is visible if True
@@ -427,6 +412,9 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
             numpoints (float): Number of symbols (only applicable for markers used on a line plot)
             scatterpoints (int): Number of symbols (only applicable on a scatter plot)
             bbox_to_anchor (tuple|list): Coords to position legend: (x0, y0)
+
+    Returns:
+        None
     '''
 
     # Assign legend properties - reverts to default values if not specified
@@ -458,37 +446,33 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
     markers_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.collections.PathCollection)]
 
     # Set legend line properties
-    if(line_props and which_lines):
-        set_line_props(ax, which_lines, line_props,
+    set_line_props(ax, which_lines, line_props,
                        lines_master=lines_master, texts_name='legend line')
-    else:
-        warnings.warn("Trying to set legend line properties but no legend lines were specified.")
     # Set legend marker properties
-    if(marker_props and which_markers):
-        set_marker_props(ax, which_markers, marker_props,
+    set_marker_props(ax, which_markers, marker_props,
                          markers_master=markers_master, texts_name='legend marker collection')
-    else:
-        warnings.warn("Trying to set legend marker properties but no legend markers were specified.")
     # Set legend text properties
-    if(text_props and which_texts):
-        set_text_props(ax, which_texts, text_props,
+    set_text_props(ax, which_texts, text_props,
                        texts_master=ax.legend_.texts, texts_name='legend text')
-    else:
-        warnings.warn("Trying to set legend text properties but no legend texts were specified.")
 
 
 def set_log_exponents(ax, which_axes):
-    '''
-    Set ticklabels as logarithmic exponents on requested x/y axis
-    :param ax: [matplotlib.axes] Axis object
-    :param which_axes: [str] 'x', 'y', 'both' OR [matplotlib.axis.XAxis, matplotlib.axis.YAxis] (optionally as list)
-    :return: None
-    '''
-    # Get appropriate axis/axes objects from input
+    """
+    Set tick labels as logarithmic exponents on requested x/y axis
+
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+
+    Returns:
+        None
+    """
+    # Get appropriate axis/axes objects from input as list
     axes_dict = {'x': ax.xaxis, 'y': ax.yaxis}
-    which_axes = _get_plot_elements(ax, which_axes, axes_dict,
-                                    'Axes',
-                                    (matplotlib.axis.XAxis, matplotlib.axis.YAxis),
+    which_axes = _get_plot_objects(ax, which_axes, True, axes_dict,
+                                    'Axes', (matplotlib.axis.XAxis, matplotlib.axis.YAxis),
                                     axes_dict.keys())
     if(which_axes):
         for wa in which_axes:
@@ -500,6 +484,39 @@ def set_log_exponents(ax, which_axes):
                 # Add log to label text if it's absent
                 _append_log_text(wa)
 
+
+# ToDo: Any other one-off functions for adjusting plotted features?
+
+
+def get_spine_props(ax, which_spines):
+    """Get properties of spines.
+
+    Args:
+        ax (matplotlib.axes): Axis object containing spines.
+        which_spines (int|str|matplotlib.spines.Spine): Spine index(es).
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'left', 'bottom', 'right', 'top', or 'all' can be used to select all spines.
+
+    Returns:
+        (dict): Spine properties for each spine specified (e.g. 'left', 'bottom', 'right', 'top') in a nested dictionary
+    """
+    return _get_props(ax, which_spines, ax.spines, 'spine', matplotlib.spines.Spine, ax.spines.keys())
+
+
+def get_label_props(ax, which_axes):
+    """Get properties of labels.
+
+    Args:
+        ax (matplotlib.axes): Axis object containing spines.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+
+    Returns:
+        (dict): Label properties for each label specified (e.g. 'x', 'y') in a nested dictionary
+    """
+    labels = {'x': ax.xaxis.label, 'y': ax.yaxis.label}
+    return _get_props(ax, which_axes, labels, 'label', matplotlib.text.Text, ['x', 'y'])
 
 # Get functions - just get everything - user can parse what they want from output
 
@@ -595,17 +612,6 @@ def get_available_fonts():
 
 # Private functions ------------------------------------------------------------
 
-def _load_defaults(file='defaults.json'):
-    '''
-    Load default pyblish plot parameters
-    :param file: File where defaults are stored in json format
-    :return: Dictionary of parameters
-    '''
-    with open(file, 'r') as fp:
-        data = json.load(fp)
-    return data
-
-
 def _write_defaults(defaults_dict, file='defaults.json'):
     '''
     Write default pyblish plot parameters
@@ -615,6 +621,16 @@ def _write_defaults(defaults_dict, file='defaults.json'):
     '''
     with open(file, 'w') as fp:
         json.dump(defaults_dict, fp, indent=4, sort_keys=True)
+
+def _load_defaults(file='defaults.json'):
+    '''
+    Load default pyblish plot parameters
+    :param file: File where defaults are stored in json format
+    :return: Dictionary of parameters
+    '''
+    with open(file, 'r') as fp:
+        data = json.load(fp)
+    return data
 
 
 def _set_params_defaults(defaults_dict, num_cols):
@@ -723,62 +739,77 @@ def _check_mathtext(ax, fontname):
                           "do not use a custom font, or remove all of the mathtext.")
 
 
-def _get_plot_elements(ax, which_elems, elem_master, elem_name, elem_type, elem_keys=None):
-    '''
-    Get list of lines from str or line object input
-    :param ax: [matplotlib.axes] Axis object
-    :param which_elems: [str] 'colon-dash-comma separated numbers', 'all' OR [matplotlib object] (optionally as list)
-    :param elem_type: [matplotlib.lines.Line2D] Type of line(s) to process
-                        e.g. plot lines = ax.lines
-                        e.g. legend lines = ??
-    :param elem_keys: [list] Keys to use for indexing of elem_master if type(elem_master) is dict
-    :return: [list] Plot object(s) of type requested
-    '''
+def _get_plot_objects(which_objs, objs_props, objs_master, objs_name, objs_keys=None):
+    """Get plotted objects from parsed input.
 
-    if(which_elems == 'all'):
-        which_elems = elem_master
+    Args:
+        which_objs (int|str|matplotlib objects): Object index(es).
+            Input is converted to an iterable and parsed depending on type.
+        objs_props: Properties to apply to element object(s). If None then objects were specified but no properties
+            were, so an error is raised. For getter-like functions this is passed as False rather than None, even though
+            no properties are specified, to avoid this error.
+        objs_master (list): Master list of objects used to get objects when given integer indexes.
+        objs_name (str): Name of object to be passed to error messages.
+        objs_keys (list): Keys to use for indexing objs_master if type(objs_master) is dict
+
+    Returns: 
+        objs (list): Plotted object(s) of type requested.
+    """
+    objs_master = utils.get_iterable(objs_master)
+    if(which_objs is None):
+        # Check if properties were specified and if so raise error
+        if(objs_props):
+            print("Input error: Trying to set {0} properties but no {0}s were specified.".format(objs_name))
+        return None
+    elif(which_objs == 'all'):
+        which_objs = objs_master
     else:
-        which_elems = utils.get_iterable(which_elems)
-
-    get_elems = []
+        which_objs = utils.get_iterable(which_objs)
+    # Check if properties have been set
+    if(objs_props is None):
+        print("Input error: Trying to set {0} properties but no properties were specified.".format(objs_name))
+        return None
+    # Parse input and add appropriate plot objects to list
+    objs = []
     try:
-        for e in which_elems:
+        for e in which_objs:
             if(isinstance(e, int)):
-                get_elems.append(elem_master[e])
+                objs.append(objs_master[e])
             elif(isinstance(e, str)):
                 # If input is all numbers and '-'/':' then parse input into index rangs
-                if(all([(c.isdigit() or c in [':', '-']) for c in e])):
+                if(all([(c.isdigit() or c in [':', '-', ',']) for c in e])):
                     inds = utils.parse_str_ranges(e)
                     for i in inds:
                         # If master list is a dict then use input as index of keys for index of master list
-                        if(elem_keys):
-                            get_elems.append(elem_master[elem_keys[i]])
+                        if(objs_keys):
+                            objs.append(objs_master[objs_keys[i]])
                         # Otherwise use input as index of master list
                         else:
-                            get_elems.append(elem_master[i])
-                # Otherwise use input as index
+                            objs.append(objs_master[i])
+                # Otherwise use input as key in master list
                 else:
-                    get_elems.append(elem_master[e])
-            elif(isinstance(e, elem_type)):
-                get_elems.append(e)
+                    objs.append(objs_master[e])
+            # If object is the same type as any master object then add object to list as is
+            elif(isinstance(e, tuple([type(o) for o in objs_master]))):
+                objs.append(e)
             else:
                 raise ValueError
-    except (KeyError, ValueError, TypeError):
-        if(elem_keys):
-            print("Input error: {}. Enter 'all', [".format(elem_name) +
-                  ', '.join(["'{}'".format(k) for k in elem_keys]) +
-                  "] as a list or individually, or {} object(s).".format(elem_name))
-            return
+    except (KeyError, ValueError, TypeError) as e:
+        if(objs_keys):
+            print("Input error: {}. Enter 'all', ".format(objs_name) +
+                  ' or '.join(["'{}'".format(k) for k in objs_keys]) +
+                  " as a list or individually, or {} object(s).".format(objs_name))
+            return None
         else:
-            print("Input error: {}. Enter 'all', ".format(elem_name) +
+            print("Input error: {}. Enter 'all', ".format(objs_name) +
                   "a comma-dash-colon separated range of numbers (e.g. '0-2,4'), " +
-                  "or {} object(s).".format(elem_name))
-            return
+                  "or {} object(s).".format(objs_name))
+            return None
     except IndexError:
-        print("Input error: {}. ".format(elem_name) +
-              "Range exceeds number of {} objects plotted ({}).".format(elem_name, len(elem_master)))
-        return
-    return get_elems
+        print("Input error: {}. ".format(objs_name) +
+              "Range exceeds number of {} objects plotted ({}).".format(objs_name, len(objs_master)))
+        return None
+    return objs
 
 
 def _get_marker_paths(symbols, top_level=True):
@@ -818,37 +849,69 @@ def _get_frame_props(legend, frame_props, var_name, private=False):
         return var
 
 
-def _set_props(ax, obj, **kwargs):
-    '''
-    Sets object property for each kwarg
-    :param ax: [matplotlib.axes] Axis object
-    :param obj: [list] Objects to apply property changes to
-    :param kwargs: Properties to set
-    :return: None
-    '''
+def _setting_props(which_success, props_dict, props_name):
+    """Check if object and object properties are defined..
+
+    Args:
+        props_name (str): Name of object that are properties are defined for.
+        which_props: Objects that properties are applied to.
+        props_dict (dict): Properties to apply to objects.
+
+    Returns:
+        (bool): True if successful, False otherwise.
+    """
+    if(which_success):
+        if(props_dict):
+            return True
+        else:
+            warnings.warn("Trying to set {0} properties but no properties were specified".format(props_name))
+            return False
+    else:
+        if(props_dict):
+            warnings.warn("Trying to set {0} properties but no {0}s were specified".format(props_name))
+        return False
+
+
+def _set_props(objs, **kwargs):
+    """Sets object property for each kwarg.
+
+    Args:
+        objs (list): Object(s) to apply property changes to.
+        **kwargs: Properties to set.
+
+    Returns:
+        None
+    """
     # Remove empty keys to avoid trying to set plot parameters to None
     kwargs = utils.remove_empty_keys(kwargs)
     # Convert properties to lists, map lists to length of obj list
-    kwargs = {k: utils.map_array(utils.get_iterable(v), len(obj)) for k,v in kwargs.items()}
+    kwargs = {k: utils.map_array(utils.get_iterable(v), len(objs)) for k,v in kwargs.items()}
     # Set object properties
     for k in kwargs:
-        for w, kv in zip(obj, kwargs.get(k)):
+        for w, kv in zip(objs, kwargs.get(k)):
             plt.setp(w, **{k: kv})
 
 
-def _get_props(self, ax, obj, prop_dict):
-    '''
-    Return a dictionary of an object's properties in specified dictionary keys
-    :param ax:
-    :param obj:
-    :param dict:
-    :return:
-    '''
-    for d in prop_dict:
-        for o in obj:
-            prop = plt.getp(o, d)
-            # Append property to appropriate dictionary key entry
-            # Only append first entry if list or tuple
-            prop_dict[d].append(prop)
-    return prop_dict
+def _get_props(ax, which_objs, objs_master, objs_name, objs_keys=None):
+    """Get plotted object properties.
+
+    Args:
+        which_objs (int|str|matplotlib objects): Object index(es).
+            Input is parsed within _get_plot_objects.
+        objs_master (list): Master list of objects used to get objects when given integer indexes.
+        objs_name (str): Name of object to be passed to error messages.
+        objs_keys (list): Keys to use for indexing objs_master if type(objs_master) is dict
+
+    Returns:
+        objs_props (dict): Properties for plotted object(s) requested.
+    """
+    defaults_dict = DotDict(_load_defaults())
+    which_objs = _get_plot_objects(which_objs, False, objs_master,
+                                      objs_name, objs_keys)
+    objs_attrs = defaults_dict[objs_name+'s_props'].keys()
+    objs_props = {}
+    for e in which_objs:
+        key_name = list(objs_master.keys())[list(objs_master.values()).index(e)]
+        objs_props[key_name] = {k: getattr(e, 'get_' + k)() for k in objs_attrs}
+    return objs_props
 

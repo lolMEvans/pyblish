@@ -36,9 +36,10 @@ ax.set_xlabel('$\mathrm{log\ n\ [cm^{-3}]}$')
 ax.set_ylabel('$\mathrm{(n/n_0)^w}$')
 
 
-pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=True)
+pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=False)
 
 
 plt.tight_layout()
 #plt.savefig('/localhome/py09mge/test.png', bbox_extra_artists=(l,), bbox_inches='tight')
 plt.show()
+#plt.close()

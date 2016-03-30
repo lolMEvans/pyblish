@@ -14,14 +14,19 @@
     ],
     "default_mathtext": "stixsans",
     "dpi": 300,
+	"labels_props": {
+		"fontsize": [],
+		"fontname": [],
+		"color": []
+	},
     "line_style": "-",
-    "lines_dict": {
+    "lines_props": {
         "color": [],
         "linestyle": [],
         "linewidth": []
     },
     "majortick_size": 6.0,
-    "markers_dict": {
+    "markers_props": {
         "edgecolor": [],
         "facecolor": [],
         "linestyle": [],
@@ -43,20 +48,20 @@
         "right",
         "top"
     ],
-    "spines_dict": {
+    "spines_props": {
         "edgecolor": [],
         "facecolor": [],
         "linestyle": [],
         "linewidth": [],
         "visible": []
     },
-    "texts_dict": {
+    "texts_props": {
         "color": [],
         "fontname": [],
         "fontsize": []
     },
     "tick_dir": "out",
-    "ticklabel_pad": -5,
+    "ticklabel_pad": 7.5,
     "use_mathtext": true,
     "use_unicode_minus": false
 }
