@@ -19,6 +19,18 @@
 		"fontname": [],
 		"color": []
 	},
+	"legend_props": {
+		"loc": 1,
+		"ncol": 5,
+		"frameon": true,
+		"columnspacing": 0.6,
+		"labelspacing": 0.5,
+		"handlelength": 1.0,
+		"handleheight": 0.7,
+		"handletextpad": 0.8,
+		"numpoints": 3,
+		"scatterpoints": 3
+	},
     "line_style": "-",
     "lines_props": {
         "color": [],
@@ -31,7 +43,7 @@
         "facecolor": [],
         "linestyle": [],
         "linewidth": [],
-        "paths": [],
+        "symbols": [],
         "sizes": []
     },
     "minortick_size": 4.0,
@@ -62,6 +74,15 @@
     },
     "tick_dir": "out",
     "ticklabel_pad": 7.5,
+	"ticks_props": {
+		"size": [],
+		"width": [],
+		"color": [],
+		"direction": [],
+		"pad": [],
+		"labelsize": [],
+		"labelcolor": []
+	},
     "use_mathtext": true,
     "use_unicode_minus": false
 }

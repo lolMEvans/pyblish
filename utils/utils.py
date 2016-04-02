@@ -32,26 +32,29 @@ def remove_empty_keys(dict):
 
 
 def parse_str_ranges(str_in):
-    '''
-    Generate a flattened range of numbers given an input of colon-dash-and-comma-separated numbers
-    :param str_in: Range of numbers requested.
-                        colon/dash separated = range between
-                            e.g. 0:2 = 0, 1, 2
-                            e.g. 1-4 = 1, 2, 3, 4
-                        comma separated = individual number
-                            e.g. 5, 6, 7 = 5, 6, 7
-    :return: [list] Flattened list of all numbers within input ranges
-    '''
+    '''Generate a flattened range of numbers given an input of colon-dash-and-comma-separated numbers.
+    Args:
+        str_in (str): Range of numbers requested.
+            colon/dash separated = range between
+                e.g. 0:2 = 0, 1, 2
+                e.g. 1-4 = 1, 2, 3, 4
+            comma separated = individual number
+                e.g. 5, 6, 7 = 5, 6, 7
 
+    Returns:
+        (list): Flattened list of all numbers within input ranges.
+    '''
     range_colon = [list(range(r[0], r[1]+1)) for r in [[int(x) for x in c.split(':')] for c in re.findall('\d+:\d+', str_in)]]
     range_dash = [list(range(r[0], r[1]+1)) for r in [[int(x) for x in c.split('-')] for c in re.findall('\d+-\d+', str_in)]]
     range_comma = [[int(x) for x in c.split(',')] for c in re.findall('\d+,\d+', str_in)]
     # Flatten, numerically sort and remove duplicates from resultant lists
     if(len(range_colon) > 0 or len(range_dash) > 0 or len(range_comma) > 0):
-        range_list = list(set(sorted([item for sublist in range_colon + range_dash + range_comma for item in sublist])))
+        return list(set(sorted([item for sublist in range_colon + range_dash + range_comma for item in sublist])))
     else:
-        range_list = [int(str_in)]
-    return range_list
+        if(str_in.isdigit()):
+            return [int(str_in)]
+        else:
+            raise ValueError("input string '{}' can not be parsed into integer ranges.".format(str_in))
 
 def exp_to_log(x, p):
     return "{:.0f}".format(math.log10(x))

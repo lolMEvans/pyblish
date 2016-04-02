@@ -21,7 +21,6 @@ for exp in [0.01, 0.1]:
 # Shrink current axis by 20%
 box = ax.get_position()
 #ax.set_position([box.x0, box.y0, box.width * 0.5, box.height])
-import matplotlib
 l = ax.legend(loc = 'upper center', ncol = 5, columnspacing = 0.6, handlelength = 1.0, handletextpad = 0.4,
               bbox_to_anchor=(0.5, 0.75), frameon = False)
 
@@ -32,7 +31,7 @@ ax.plot((nmax, nmax), (ax.get_ylim()[0], ax.get_ylim()[1]), ls = '--', c = 'gray
 ax.text(0.8, 0.1, '$\mathrm{n = n_0}$', transform = ax.transAxes)
 ax.text(0.8, 0.2, 'LOL', transform = ax.transAxes)
 
-ax.set_xlabel('$\mathrm{log\ n\ [cm^{-3}]}$')
+ax.set_xlabel('$\mathit{log\ n\ [cm^{-3}]}$')
 ax.set_ylabel('$\mathrm{(n/n_0)^w}$')
 
 
