@@ -23,7 +23,14 @@ def map_array(array, map_len):
     :param map_len: [int] Length to map array to
     :return: None
     '''
-    return array * (map_len // len(array)) + array[:map_len % len(array)]
+    try:
+        return array * (map_len // len(array)) + array[:map_len % len(array)]
+    except ValueError:
+        print(array, len(array), map_len)
+        print(map_len % len(array))
+        print(map_len // len(array))
+        return None
+
 
 
 def remove_empty_keys(dict):

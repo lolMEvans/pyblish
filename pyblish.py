@@ -13,9 +13,24 @@ import re
 from utils import utils
 
 # ToDo: Main
+# ***
+# Confirm getter functions work correctly
+# Getter functions return dictionary of key names as object names so that
+# user can parse output as desired
+# But output should be easily convertable into input that works in setter
+# functions
 
+# Spines = WORKS
+# Labels = ?
+# Ticks = ?
+# Lines = ?
+# Markers = ?
+# Texts = ?
+# Legend = ?
+# ***
+
+# Finish function docstrings - nearly all done
 # Add fuzzy logic to font name search?
-# make docstrings user-friendly - done nearly all functions
 # add custom exceptions to get functions?
 # add custom exceptions to set functions?
 # add exceptions to utils
@@ -53,19 +68,18 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
     aspect_val = _get_aspect_val(aspect)
     # Set figure size
     fig_width, fig_height = _get_figure_size(num_cols, aspect_val)
-    set_figure_size(fig, fig_width, fig_height)
+    set_figure_size(fig, fig_width, fig_height, 2.0)
 
     # Apply changes to all axis objects in figure
     for ax in fig.axes:
         # Set axes spine properties using default spine properties
         if(which_spines):
-            set_spine_props(ax, ['left', 'bottom'], spine_props=dict(
-                    linewidth=defaults_dict.spine_width, edgecolor=['blue', 'red']))
+            set_spine_props(ax, 'left', spine_props=dict(
+                    linewidth=defaults_dict.spine_width * 2, edgecolor=[(0.0, 0.0, 1.0, 1.0), 'red']))
         # Set axes label properties using default label properties
         if(which_labels):
             set_label_props(ax, 'all', label_props=dict(
-                    fontsize=defaults_dict.label_size*3, fontname=None, color=None))
-
+                    fontsize=[defaults_dict.label_size*3, 20], fontname=['Arial', 'Comic Sans MS'], color=None))
         # Set axes ticks and ticklabel properties using default tick and ticklabel properties
         if(which_ticks):
             set_tick_props(ax, 'all', tick_props=dict(
@@ -87,11 +101,11 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
         # Set marker properties using default marker properties
         if(which_markers):
             if(ax.collections):
-                set_marker_props(ax, '1', marker_props=dict(
-                        sizes=100,#defaults_dict.marker_size,
-                        linewidth=defaults_dict.line_width, linestyle=[['-', ':']],
-                        facecolor=[defaults_dict.col_cycle], edgecolor=[defaults_dict.col_cycle],
-                        symbols='o'))
+                set_marker_props(ax, 'all', marker_props=dict(
+                        sizes=[100, 400],#defaults_dict.marker_size,
+                        linewidth=defaults_dict.line_width*2, linestyle=[['-', ':'], ['-', ':']],
+                        facecolor=['red', 'green'], edgecolor=[defaults_dict.col_cycle]*2,
+                        symbols=['x', 'x']))
         # Set text properties using default text properties
         if(which_texts):
             set_text_props(ax, 'all', text_props=dict(
@@ -286,16 +300,17 @@ def get_legend_props(ax, which_lines=None, which_markers=None, which_texts=None)
 
 
 
-def set_figure_size(fig, fig_width, fig_height):
+def set_figure_size(fig, fig_width, fig_height, res_inc=1.0):
     """Set figure size by calling private function
     Args:
         fig (matplotlib.figure.Figure)
         fig_width (float)
         fig_height (float)
+        res_inc (float): Factor to increase figure resolution by.
     Returns:
         None
     """
-    _set_figure_size(fig, fig_width, fig_height)
+    _set_figure_size(fig, fig_width * res_inc, fig_height * res_inc)
 
 
 def set_font(font, mathtext=False):
@@ -327,7 +342,7 @@ def set_font(font, mathtext=False):
             matplotlib.rcParams['font.family'] = font
     else:
         warnings.warn("Could not set '{}' mathtext font so reverted back to default. "
-                        "Use get_available_fonts() to see a list of fonts on your system.".format(font))
+                        "Use get_available_fonts() to see a list of fonts on this system.".format(font))
 
 
 def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, duplicate_ticks=False):
@@ -359,20 +374,26 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
         which_spines_invis = [v for k,v in spines.items() if v not in which_spines]
         # Turn off all spines and ticks and labels initially
         for ax_label, ax_dir in spines_dict.items():
-            ax_dir.set_tick_params(which='all', **{ax_label: 'off'}, **{'label'+ax_label: 'off'})
+            ax_dir.set_tick_params(which='both', **{ax_label: 'off'}, **{'label'+ax_label: 'off'})
         # Turn on requested spines and ticks and labels
         for sp in which_spines:
-            ax_label = list(ax.spines.keys())[list(spines.values()).index(sp)]
+            ax_label = list(spines.keys())[list(spines.values()).index(sp)]
             ax_dir = spines_dict[ax_label]
-            ax_dir.set_tick_params(which='all', **{ax_label: 'on'}, **{'label'+ax_label: 'on'})
+            ax_dir.set_tick_params(which='both', **{ax_label: 'on'}, **{'label'+ax_label: 'on'})
             # Avoid duplication of ticks on both sides of plot if requested
             if not(duplicate_ticks):
                 ax_dir.set_ticks_position(ax_label)
+        # Handle RGB color input
+        for col in ['edgecolor', 'facecolor']:
+            if(col in spine_props):
+                if(isinstance(spine_props[col], tuple) and len(spine_props[col]) == 4):
+                    spine_props[col] = [spine_props[col]]
+        print(spine_props)
         # Set properties using matplotlib.pyplot.setp
-        _set_props(which_spines, **spine_props)
+        _set_props(which_spines, 'spine', **spine_props)
         # Hide unspecified spines
         if(hide_other_spines):
-            _set_props(which_spines_invis, visible=False)
+            _set_props(which_spines_invis, 'spine', visible=False)
 
 
 def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
@@ -435,10 +456,10 @@ def set_label_props(ax, which_labels, label_props):
     if(which_labels):
         # Check if there's mathtext if user requests a custom font as it will change font for
         # all mathtext in the plot
-        if('fontname' in label_props):
-            _check_mathtext(ax, label_props['fontname'])
+        # if('fontname' in label_props):
+        #     _check_mathtext(ax, label_props['fontname'])
         # Set properties using matplotlib.pyplot.setp
-        _set_props(which_labels, **label_props)
+        _set_props(which_labels, 'label', **label_props)
 
 
 def set_line_props(ax, which_lines, line_props, legend_lines=False):
@@ -470,12 +491,11 @@ def set_line_props(ax, which_lines, line_props, legend_lines=False):
     which_lines = _get_plot_objects(which_lines, line_props, lines_master, lines_name)
     if(which_lines):
         # Set properties using matplotlib.pyplot.setp
-        _set_props(which_lines, **line_props)
+        _set_props(which_lines, lines_name, **line_props)
 
 
 def set_marker_props(ax, which_markers, marker_props, legend_markers=False):
     """Set properties for markers.
-
     Args:
         ax (matplotlib.axes): Axis object.
         which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es).
@@ -495,7 +515,6 @@ def set_marker_props(ax, which_markers, marker_props, legend_markers=False):
                 symbols (str|matplotlib.markers.MarkerStyle): Marker symbols
         legend_markers (bool): Sets properties for legend marker collections if True, otherwise sets properties for
             marker collections plotted on specified axis object.
-
     Returns:
         None
     """
@@ -508,22 +527,18 @@ def set_marker_props(ax, which_markers, marker_props, legend_markers=False):
     # Get appropriate marker object(s) from input as list
     which_markers = _get_plot_objects(which_markers, marker_props, markers_master, markers_name)
     if(which_markers):
-        # Convert sizes input to a nested list as this is the input for each collection in set_sizes()
-        # This means incidentally that individual marker sizes can be set within each collection
+        # Convert any non-iterable size value to an iterable as this is the input for the built-in matplotlib function
         if('sizes' in marker_props):
-            if(type(marker_props['sizes']) is not list or not any([isinstance(i, list) for i in marker_props['sizes']])):
-                marker_props['sizes'] = [[s] for s in utils.get_iterable(marker_props['sizes'])]
-
+            marker_props['sizes'] = [_ if isinstance(_, list) else [_] for _ in utils.get_iterable(marker_props['sizes'])]
         if('symbols' in marker_props):
             marker_props['paths'] = _get_marker_paths(utils.get_iterable(marker_props['symbols']))
             marker_props.pop('symbols')  # Remove symbols key as it is now paths
         # Set properties using matplotlib.pyplot.setp
-        _set_props(which_markers, **marker_props)
+        _set_props(which_markers, markers_name, **marker_props)
 
 
 def set_text_props(ax, which_texts, text_props, legend_texts=False):
     """Set properties for texts.
-
     Args:
         ax (matplotlib.axes): Axis object.
         which_texts (int|str|matplotlib.text.Text): Text index(es).
@@ -538,7 +553,6 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
                 fontname (str): Text font(s)
         legend_texts (bool): Sets properties for legend texts if True, otherwise sets properties for texts plotted on
             specified axis object.
-
     Returns:
         None
     """
@@ -553,7 +567,7 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
                                      texts_name)
     if(which_texts):
         # Set properties using matplotlib.pyplot.setp
-        _set_props(which_texts, **text_props)
+        _set_props(which_texts, texts_name, **text_props)
 
 
 def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
@@ -561,7 +575,6 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
                         frame_props=None):
     """Set properties for legend frame and/or any lines, markers, texts. Changes to plotted lines and markers before
     this function call are reflected in the legend lines/symbols automatically.
-
     Args:
         ax (matplotlib.axes): Axis object.
         which_lines/which_markers/which_texts (int|str|matplotlib objects): Object index(es).
@@ -599,7 +612,6 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
             numpoints (int): Number of symbols (only applicable for markers used on a line plot)
             scatterpoints (int): Number of symbols (only applicable on a scatter plot)
             bbox_to_anchor (tuple|list): Coords to position legend: (x0, y0)
-
     Returns:
         None
     """
@@ -638,14 +650,12 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
 
 def set_log_exponents(ax, which_axes):
     """
-    Set tick labels as logarithmic exponents on requested x/y axis
-
+    Set tick labels as logarithmic exponents on requested x/y axis.
     Args:
         ax (matplotlib.axes): Axis object.
         which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-
     Returns:
         None
     """
@@ -672,10 +682,9 @@ def set_log_exponents(ax, which_axes):
 
 # Font related functions -----------------------------------------------
 def get_available_fonts():
-    """Use matplotlib.font_manager to get fonts on system
-
+    """Use matplotlib.font_manager to get fonts on system.
     Returns:
-         Alphabetically sorted list of .ttf font names
+         Alphabetically sorted list of .ttf font names.
     """
     FM = fm.FontManager()
     font_names = set([f.name for f in FM.ttflist])
@@ -683,46 +692,47 @@ def get_available_fonts():
 
 
 def _get_aspect_val(aspect):
-    '''
-    Return a decimal aspect ratio given a desired input
-    :param aspect: [str, float, int]
-    :return: [float] Aspect ratio
-    '''
+    """Get width-to-height figure aspect ratio given name or value input.
+    Args:
+        aspect (str|float): Width-to-height figure aspect ratio name or value.
+    Returns:
+        aspect_return (float): Width-to-height figure aspect ratio.
+    """
     aspect_dict = {'square': 1, 'normal': 1.333, 'golden': 1.618, 'widescreen': 1.78}
     # If aspect is a number use it directly
     # Otherwise look up aspect in a dictionary to convert to number
-    if(':' in aspect):
-        numerator, denominator = aspect.split(':')
-        aspect_val = float(numerator)/float(denominator)
-    else:
-        try:
-            float(aspect)
-        except ValueError:
-            try:
-                aspect_val = aspect_dict[aspect]
-            except KeyError:
-                raise KeyError("Unrecognised aspect - use %s" % ', '.join(aspect_dict.keys()))
+    if(isinstance(aspect, (float, int))):
+        aspect_return = aspect
+    elif(isinstance(aspect, str)):
+        if(':' in aspect):
+            numerator, denominator = aspect.split(':')
+            aspect_return = float(numerator)/float(denominator)
+        elif(aspect in aspect_dict):
+            aspect_return = aspect_dict[aspect]
         else:
-            aspect_val = aspect
-    return aspect_val
+            print("InputError: unregonised apsect name. Accepted names are '{}'.".format("', '".join(aspect_dict.keys())))
+            return None
+    else:
+        print("InputError: unrecognised aspect value. Accepted inputs are '{}' or a number.".format("', '".join(aspect_dict.keys())))
+        return None
+    return aspect_return
 
 
-def _get_figure_size(num_cols, aspect_val):
-    '''
-    Get size of figure object based on one or two column request
-    :param num_cols: Number of column requested
-    :param aspect_val: Aspect value of figure
-    :return: Figure width and height * 2 in order to produce plots that reduce better
-    '''
+def _get_figure_size(num_cols, aspect):
+    """Get size of figure based on number of columns that the figure will span.
+    Args:
+        num_cols: Number of columns specified.
+        aspect (float): Width-to-height figure aspect ratio.
+    Returns:
+        (float), (float): Figure width, figure height.
+    """
     fig_width = 3.333 if num_cols == 1 else 7.639  # One column or two columns + middle space
-    fig_height = fig_width * 1./aspect_val
-    # Return figure size of double width and height to increase resolution
-    return fig_width * 2, fig_height * 2
+    fig_height = fig_width * 1./aspect
+    return fig_width, fig_height
 
 
 def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
     """Get plotted objects from parsed input.
-
     Args:
         objs (int|str|matplotlib objects): Object index(es).
             Input is converted to an iterable and parsed depending on type.
@@ -732,23 +742,22 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
         objs_master (list): Master list of objects used to get objects when given integer indexes.
         objs_name (str): Name of object to be passed to error messages.
         objs_keys (list): Keys to use for indexing objs_master if type(objs_master) is dict
-
     Returns: 
         objs_return (list): Plotted object(s) of type requested.
     """
     if(objs is None):
         # If objs_props is defined then properties are being accessed with setter functions
         if(objs_props):
-            print("Input error: Trying to set {0} properties but no {0}s were specified.".format(objs_name))
+            print("InputError: Trying to set {0} properties but no {0}s were specified.".format(objs_name))
         # If objs_props is False then properties are being accessed with getter functions
         elif(objs_props is False):
-            print("Input error: Trying to get {0} properties but no {0}s were specified.".format(objs_name))
+            print("InputError: Trying to get {0} properties but no {0}s were specified.".format(objs_name))
         return None
     elif(objs == 'all'):
         objs = objs_master  # Set objects to master list (i.e. all objects)
     # Check if properties have been set
     if(objs_props is None):
-        print("Input error: Trying to set {0} properties but no properties were specified.".format(objs_name))
+        print("InputError: Trying to set {0} properties but no properties were specified.".format(objs_name))
         return None
     # Parse input and add appropriate plot objects to list
     objs_return = []
@@ -783,26 +792,28 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
                 try:
                     objs_return.append(objs_master[objs_keys.index(wo)])
                 except ValueError:
-                    print("ValueError: Only '{}' and 'all' are accepted object name inputs.".format("', '".join(objs_keys)))
+                    print("ValueError: only '{}' and 'all' are accepted object name inputs.".format("', '".join(objs_keys)))
                     return None
         elif(isinstance(wo, tuple([type(om) for om in objs_master]))):
             objs_return.append(wo)
         else:
-            print("InputError: Unrecognised object '{}'".format(wo))
+            print("InputError: unrecognised object '{}'".format(wo))
     return objs_return
 
 
 def _get_marker_paths(symbols, top_level=True):
-    '''
-    Convert marker symbols or objects into path objects recursively
-    :param symbols: [str|tuple|list] Marker identifier (optionally nested)
-    :param no_tuple: [bool] Tuple expansion is not needed for nested symbols
-    :return: Paths objects
-    '''
+    """Get marker path objects from symbols specified.
+    Args:
+        symbols (list[str]): Marker symbol names (e.g. 'x', 'o', '$word$ etc.).
+        top_level: Paths objects is converted to list if True as built-in matplotlib function takes iterable input.
+
+    Returns:
+        paths (matplotlib.collections.PathCollection)
+    """
     paths = symbols
     for i, s in enumerate(symbols):
         if(isinstance(s, list)):
-            s = _get_marker_paths(s, False)
+            m = _get_marker_paths(s, False)
         else:
             # Convert string into marker object
             m = matplotlib.markers.MarkerStyle(s)
@@ -832,49 +843,48 @@ def _get_frame_props(legend, frame_props, var_name, private=False):
 
 def _get_props(ax, objs, objs_master, objs_name, objs_keys=None):
     """Get plotted object properties.
-
     Args:
         objs (int|str|matplotlib objects): Object index(es).
             Input is parsed within _get_plot_objects.
         objs_master (list): Master list of objects used to get objects when given integer indexes.
         objs_name (str): Name of object to be passed to error messages.
-        objs_keys (list): Keys to use for indexing objs_master if type(objs_master) is dict
-
+        objs_keys (list): Keys to use for indexing objs_master and ordering objs if type(objs_master) is dict
     Returns:
-        objs_props (dict): Properties for plotted object(s) requested.
+        objs_props (dict): Properties for plotted object(s) requested. This is returned as a nested dictionary so
+            that each object is clearly listed and the user can parse output as desired.
     """
-    # Get appropriate objects from input as list
+    # Get appropriate objects from input as list - if objs_keys is defined get objects in order specified by objs_keys
     objs = _get_plot_objects(objs, False, objs_master,
                                       objs_name, objs_keys)
     # Get attribute name from stripped down object name that is used for error messages
     defaults_attr_name = re.sub('legend | collection', '', objs_name)+'s_props'
     # Get list of attributes to retrieve for object using defaults.json file
     objs_attrs = list(DotDict(_load_defaults())[defaults_attr_name].keys())
-    objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
-    # Fix copied attribute names from user-friendly defaults.json names to those that matplotlib uses internally
+    # Fix attribute names used as output keys from user-friendly defaults.json names to those that matplotlib uses
+    # internally
     if('symbols' in objs_attrs):
-        objs_attrs_proper[objs_attrs_proper.index('symbols')] = 'paths'
-    objs_props = {}
+        objs_attrs[objs_attrs.index('symbols')] = 'paths'
+    # Fix copied attribute names used for property access from user-friendly defaults.json names to those that
+    # matplotlib uses internally - NONE DEFINED SO FAR
+    # objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
+    objs_props = {k: [] for k in objs_attrs}
+    # Iterate through objects
     for i, wo in enumerate(objs):
         if(objs_keys):
-            # Get key name from list of keys specified when master list is a dictionary
             key_name = objs_keys[i]
         else:
-            # Get key name as object number
             key_name = i
         # Add to property dictionary using built in getter functions for matplotlib object and user-friendly attribute
         # names
-        objs_props[key_name] = {n: plt.getp(wo, k) for k, n in zip(objs_attrs_proper, objs_attrs)}
+        objs_props[key_name] = {k: plt.getp(wo, k) for k in objs_attrs}  # Add property to key name list
     return objs_props
 
 
 def _get_tick_props(axes, tick_type):
     """Get tick properties. Uses private variables that may become deprecated.
-
     Args:
         axes:
         tick_type (str): 'major' or 'minor'.
-
     Returns:
         tick_props (dict): Properties for ticks requested.
     """
@@ -910,11 +920,9 @@ def _set_figure_size(fig, fig_width, fig_height):
 
 def _set_params_defaults(defaults, num_cols):
     """
-
     Args:
         defaults (DotDict): Dictionary of default plotting parameters that supports dot notation.
         num_cols (int): Number of columns the figure will span in article.
-
     Returns:
         defaults (DotDict): Dictionary of  updated default plotting parameters that supports dot notation.
 
@@ -943,20 +951,26 @@ def _set_rcparams_defaults(defaults_dict):
     rcParams['figure.dpi'] = defaults_dict.dpi
 
 
-def _set_props(objs, **kwargs):
+def _set_props(objs, objs_name, **kwargs):
     """Set plotted object properties.
-
     Args:
         objs (list): Object(s) to apply property changes to.
         **kwargs: Properties to set.
-
     Returns:
         None
     """
     # Remove empty keys to avoid trying to set plot parameters to None
     kwargs = utils.remove_empty_keys(kwargs)
-    # Convert properties to lists, map lists to length of obj list
-    kwargs = {k: utils.map_array(utils.get_iterable(v), len(objs)) for k,v in kwargs.items()}
+    for k in kwargs:
+        v = kwargs.get(k)
+        # Convert non-iterable into list of same length as objects because this property will be applied to all objects
+        if(not isinstance(v, (list, tuple))):
+            kwargs[k] = [v] * len(objs)
+        else:
+            if(len(v) < len(objs)):
+                kwargs[k] = utils.map_array(v, len(objs))
+                warnings.warn("Too few arguments ({3}) set for {0} {1} property. Mapping input {1} properties to all "
+                              "{0} objects ({2}).".format(objs_name, k, len(objs), len(v)))
     # Set object properties
     for k in kwargs:
         for w, kv in zip(objs, kwargs.get(k)):
@@ -1012,12 +1026,16 @@ def _append_log_text(wa):
 
 def _check_mathtext(ax, fontname):
     ''''''
-    # Check for math text anywhere in the axis object children as custom fonts won't work in this case
-    for t in [t.get_text() for t in ax.texts] + [ax.get_xlabel(), ax.get_ylabel()]:
-        if('$' in t and fontname is not None):
-            if(set_font(fontname, mathtext=True)):
-                warnings.warn("Text contains '$' so mathtext font has been custom updated to specified font. "
-                          "This will change the appearance of all mathtext.\n"
-                          "If you do not want this change run reset_mathtext_font() to revert back to default, "
-                          "do not use a custom font, or remove all of the mathtext.")
+    # Rework this to check label text for mathtext
 
+    # # Check for math text anywhere in the axis object children as custom fonts won't work in this case
+    # for t in [t.get_text() for t in ax.texts] + [ax.get_xlabel(), ax.get_ylabel()]:
+    #     for font in utils.get_iterable(fontname):
+    #         if('$' in t and font is not None):
+    #             if(set_font(font, mathtext=True)):
+    #                 warnings.warn("Text contains '$' so mathtext font has been custom updated to specified font. "
+    #                           "This will change the appearance of all mathtext.\n"
+    #                           "If you do not want this change run reset_mathtext_font() to revert back to default, "
+    #                           "do not use a custom font, or remove all of the mathtext.")
+    for font in utils.get_iterable(fontname):
+        print(font)

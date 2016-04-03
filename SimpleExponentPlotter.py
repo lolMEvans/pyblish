@@ -1,7 +1,7 @@
 from cycler import cycler
 import numpy as np
 import matplotlib.pyplot as plt
-
+import pyblish
 from pyblish import pyblishify
 
 fig = plt.figure()
@@ -31,14 +31,18 @@ ax.plot((nmax, nmax), (ax.get_ylim()[0], ax.get_ylim()[1]), ls = '--', c = 'gray
 ax.text(0.8, 0.1, '$\mathrm{n = n_0}$', transform = ax.transAxes)
 ax.text(0.8, 0.2, 'LOL', transform = ax.transAxes)
 
-ax.set_xlabel('$\mathit{log\ n\ [cm^{-3}]}$')
-ax.set_ylabel('$\mathrm{(n/n_0)^w}$')
+ax.set_xlabel('LOL') # ('$\mathit{log\ n\ [cm^{-3}]}$')
+ax.set_ylabel('LOL') # '$\mathrm{(n/n_0)^w}$')
 
 
 pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=False)
+tick_props = pyblish.get_tick_props(ax, 'all')
+tick_props = {k: [v1] + [v2] for (k, v1), (k, v2) in zip(tick_props['x'].items(), tick_props['y'].items())}
+print(tick_props)
+# pyblish.set_tick_props(ax, 'x', tick_props)
 
 
 plt.tight_layout()
-#plt.savefig('/localhome/py09mge/test.png', bbox_extra_artists=(l,), bbox_inches='tight')
+# plt.savefig('/localhome/py09mge/test.png', bbox_extra_artists=(l,), bbox_inches='tight')
 plt.show()
-#plt.close()
+# plt.close()
