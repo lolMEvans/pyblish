@@ -20,9 +20,8 @@ from utils import utils
 # But output should be easily convertable into input that works in setter
 # functions
 
-# Spines = WORKS
+# Spines = DONE!, Ticks = DONE!
 # Labels = ?
-# Ticks = ?
 # Lines = ?
 # Markers = ?
 # Texts = ?
@@ -74,8 +73,9 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
     for ax in fig.axes:
         # Set axes spine properties using default spine properties
         if(which_spines):
-            set_spine_props(ax, 'left', spine_props=dict(
-                    linewidth=defaults_dict.spine_width * 2, edgecolor=[(0.0, 0.0, 1.0, 1.0), 'red']))
+            set_spine_props(ax, ['right', 'left'], spine_props=dict(
+                    linewidth=defaults_dict.spine_width * 2, edgecolor=[(0.0, 0.0, 1.0, 1.0), 'red']),
+                            hide_other_spines=True, duplicate_ticks=True)
         # Set axes label properties using default label properties
         if(which_labels):
             set_label_props(ax, 'all', label_props=dict(
@@ -83,7 +83,7 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
         # Set axes ticks and ticklabel properties using default tick and ticklabel properties
         if(which_ticks):
             set_tick_props(ax, 'all', tick_props=dict(
-                    size=defaults_dict.majortick_size, width=defaults_dict.line_width, color='green',
+                    size=defaults_dict.majortick_size*2, width=defaults_dict.line_width*2, color='green',
                     direction=defaults_dict.tick_dir, pad=defaults_dict.ticklabel_pad,
                     labelsize=defaults_dict.ticklabel_size, labelcolor='purple'),
                     tick_type='major')
@@ -157,22 +157,7 @@ def get_tick_props(ax, which_axes, tick_type='major'):
     Returns:
         (dict): Tick properties for each set of ticks specified (e.g. 'x', 'y') as a nested dictionary.
     """
-    # Get appropriate axis/axes objects from input as list
-    which_axes = _get_plot_objects(which_axes, False, {'x': ax.xaxis, 'y': ax.yaxis},
-                                    tick_type + ' tick', ['x', 'y'])
-    # Get list of attributes to retrieve for ticks using defaults.json file
-    tick_attrs = list(DotDict(_load_defaults())['ticks_props'].keys())
-    tick_attrs_proper = tick_attrs.copy()  # Copy legend attributes
-    # Fix copied attribute names from user-friendly defaults.json names to those that matplotlib uses internally
-    tick_attrs_proper[tick_attrs_proper.index('direction')] = 'tickdir'
-    tick_props = {}
-    if(which_axes):
-        for wa in which_axes:
-            # Get axis key name from axis value index in dictionary
-            key_name = ['x', 'y'][[ax.xaxis, ax.yaxis].index(wa)]
-            # Add to property dictionary using private variable access and user-friendly attribute names
-            tick_props[key_name] = {tick_attrs[tick_attrs_proper.index(k)]: v for k, v in _get_tick_props(wa, tick_type).items() if k in tick_attrs_proper}
-    return tick_props
+    return _get_props(ax, which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', ['x', 'y'], tick_type)
 
 
 def get_label_props(ax, which_axes):
@@ -367,33 +352,33 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
     # Get appropriate spine object(s) from input as list
     which_spines = _get_plot_objects(which_spines, spine_props, ax.spines, 'spine',
                                      ['left', 'bottom', 'right', 'top'])
+    print(which_spines)
     if(which_spines):
         spines = ax.spines
         spines_dict = {'left': ax.yaxis, 'bottom': ax.xaxis, 'right': ax.yaxis, 'top': ax.xaxis}
         # Get list of spines unspecified which will be made invisible
         which_spines_invis = [v for k,v in spines.items() if v not in which_spines]
-        # Turn off all spines and ticks and labels initially
-        for ax_label, ax_dir in spines_dict.items():
-            ax_dir.set_tick_params(which='both', **{ax_label: 'off'}, **{'label'+ax_label: 'off'})
-        # Turn on requested spines and ticks and labels
+        if(hide_other_spines):
+            # Turn off all spines and ticks and tick labels
+            for ax_dir in spines:
+                spines[ax_dir].axis.set_tick_params(which='both', **{ax_dir: 'off'}, **{'label'+ax_dir: 'off'})
+                spines[ax_dir].set_visible(False)
+        # Show spines and ticks and tick labels for spines specified
         for sp in which_spines:
-            ax_label = list(spines.keys())[list(spines.values()).index(sp)]
-            ax_dir = spines_dict[ax_label]
-            ax_dir.set_tick_params(which='both', **{ax_label: 'on'}, **{'label'+ax_label: 'on'})
-            # Avoid duplication of ticks on both sides of plot if requested
+            ax_dir = list(spines.keys())[list(spines.values()).index(sp)]
+            sp.axis.set_tick_params(which='both', **{ax_dir: 'on'}, **{'label'+ax_dir: 'on'})
+            sp.set_visible(True)
             if not(duplicate_ticks):
-                ax_dir.set_ticks_position(ax_label)
+                # Set ticks only on one side, according to which 'left'|'right', 'bottom'|'top' spine is ordered last
+                # in which_spines
+                sp.axis.set_ticks_position(ax_dir)
         # Handle RGB color input
         for col in ['edgecolor', 'facecolor']:
             if(col in spine_props):
-                if(isinstance(spine_props[col], tuple) and len(spine_props[col]) == 4):
+                if(isinstance(spine_props[col], tuple) and 3 > len(spine_props[col]) <= 4):
                     spine_props[col] = [spine_props[col]]
-        print(spine_props)
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_spines, 'spine', **spine_props)
-        # Hide unspecified spines
-        if(hide_other_spines):
-            _set_props(which_spines_invis, 'spine', visible=False)
 
 
 def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
@@ -426,11 +411,8 @@ def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
     which_axes = _get_plot_objects(which_axes, tick_props, {'x': ax.xaxis, 'y': ax.yaxis}, tick_type + ' tick',
                                    ['x', 'y'])
     if(which_axes):
-        # Remove empty keys to avoid trying to set tick parameters to None
-        tick_props = utils.remove_empty_keys(tick_props)
-        # Set tick properties
-        for wa in which_axes:
-            wa.set_tick_params(tick_type, **tick_props)
+        # Set properties using ax.(x|y)axis.set_tick_params
+        _set_props(which_axes, 'ticks', tick_type, **tick_props)
 
 
 def set_label_props(ax, which_labels, label_props):
@@ -841,7 +823,7 @@ def _get_frame_props(legend, frame_props, var_name, private=False):
         return var
 
 
-def _get_props(ax, objs, objs_master, objs_name, objs_keys=None):
+def _get_props(ax, objs, objs_master, objs_name, objs_keys=None, get_ticks=None):
     """Get plotted object properties.
     Args:
         objs (int|str|matplotlib objects): Object index(es).
@@ -849,6 +831,9 @@ def _get_props(ax, objs, objs_master, objs_name, objs_keys=None):
         objs_master (list): Master list of objects used to get objects when given integer indexes.
         objs_name (str): Name of object to be passed to error messages.
         objs_keys (list): Keys to use for indexing objs_master and ordering objs if type(objs_master) is dict
+        get_ticks (str): Objects are ticks if defined as tick type ('major'|'minor') so get properties using built-in
+            matplotlib tick keys-values getter function, otherwise if undefined get properties using built-in matplotlib
+            property getter function.
     Returns:
         objs_props (dict): Properties for plotted object(s) requested. This is returned as a nested dictionary so
             that each object is clearly listed and the user can parse output as desired.
@@ -866,7 +851,8 @@ def _get_props(ax, objs, objs_master, objs_name, objs_keys=None):
         objs_attrs[objs_attrs.index('symbols')] = 'paths'
     # Fix copied attribute names used for property access from user-friendly defaults.json names to those that
     # matplotlib uses internally - NONE DEFINED SO FAR
-    # objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
+    objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
+    objs_attrs_proper[objs_attrs_proper.index('direction')] = 'tickdir'
     objs_props = {k: [] for k in objs_attrs}
     # Iterate through objects
     for i, wo in enumerate(objs):
@@ -876,7 +862,10 @@ def _get_props(ax, objs, objs_master, objs_name, objs_keys=None):
             key_name = i
         # Add to property dictionary using built in getter functions for matplotlib object and user-friendly attribute
         # names
-        objs_props[key_name] = {k: plt.getp(wo, k) for k in objs_attrs}  # Add property to key name list
+        if(get_ticks):
+            objs_props[key_name] = {objs_attrs[objs_attrs_proper.index(k)]: v for k, v in _get_tick_props(wo, get_ticks).items() if k in objs_attrs_proper}
+        else:
+            objs_props[key_name] = {n: plt.getp(wo, k) for k, n in zip(objs_attrs_proper, objs_attrs)}  # Add property to key name list
     return objs_props
 
 
@@ -951,10 +940,14 @@ def _set_rcparams_defaults(defaults_dict):
     rcParams['figure.dpi'] = defaults_dict.dpi
 
 
-def _set_props(objs, objs_name, **kwargs):
+def _set_props(objs, objs_name, set_ticks=None, **kwargs):
     """Set plotted object properties.
     Args:
         objs (list): Object(s) to apply property changes to.
+        objs_name (str): Name of object to be passed to error message.
+        set_ticks (str): Objects are ticks if defined as tick type ('major'|'minor') so set properties using matplotlib
+            built-in tick parameter setter function, otherwise if undefined set properties using built-in matplotib
+            property setter function.
         **kwargs: Properties to set.
     Returns:
         None
@@ -971,10 +964,12 @@ def _set_props(objs, objs_name, **kwargs):
                 kwargs[k] = utils.map_array(v, len(objs))
                 warnings.warn("Too few arguments ({3}) set for {0} {1} property. Mapping input {1} properties to all "
                               "{0} objects ({2}).".format(objs_name, k, len(objs), len(v)))
-    # Set object properties
-    for k in kwargs:
+        # Set each property for each appropriate object
         for w, kv in zip(objs, kwargs.get(k)):
-            plt.setp(w, **{k: kv})
+            if(set_ticks):
+                w.set_tick_params(set_ticks, **{k: kv})
+            else:
+                plt.setp(w, **{k: kv})
 
 
 

@@ -36,10 +36,12 @@ ax.set_ylabel('LOL') # '$\mathrm{(n/n_0)^w}$')
 
 
 pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=False)
+pyblish.set_spine_props(ax, 'bottom', {'linewidth': 3.0, 'color': 'red'}, True)
+
 tick_props = pyblish.get_tick_props(ax, 'all')
 tick_props = {k: [v1] + [v2] for (k, v1), (k, v2) in zip(tick_props['x'].items(), tick_props['y'].items())}
-print(tick_props)
-# pyblish.set_tick_props(ax, 'x', tick_props)
+tick_props['color'] = ['green', 'red']
+pyblish.set_tick_props(ax, 'all', tick_props)
 
 
 plt.tight_layout()
