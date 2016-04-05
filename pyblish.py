@@ -20,9 +20,7 @@ from utils import utils
 # But output should be easily convertable into input that works in setter
 # functions
 
-# Spines = DONE!, Ticks = DONE!
-# Labels = ?
-# Lines = ?
+# Spines = DONE!, Ticks = DONE!, Labels = DONE!, Lines = DONE!
 # Markers = ?
 # Texts = ?
 # Legend = ?
@@ -148,7 +146,7 @@ def get_tick_props(ax, which_axes, tick_type='major'):
     other matplotlib objects.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
             Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
@@ -164,7 +162,7 @@ def get_label_props(ax, which_axes):
     """Get properties of labels.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
             Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
@@ -172,8 +170,7 @@ def get_label_props(ax, which_axes):
     Returns:
         (dict): Label properties for each label specified (e.g. 'x', 'y') as a nested dictionary.
     """
-    labels = {'x': ax.xaxis.label, 'y': ax.yaxis.label}
-    return _get_props(ax, which_axes, labels, 'label', ['x', 'y'])
+    return _get_props(ax, which_axes, {'x': ax.xaxis.label, 'y': ax.yaxis.label}, 'label', ['x', 'y'])
 
 
 def get_line_props(ax, which_lines, legend_lines=False):
@@ -280,6 +277,19 @@ def get_legend_props(ax, which_lines=None, which_markers=None, which_texts=None)
         return {n: getattr(ax.legend_, k) for (k, n) in zip(legend_attrs_proper, legend_attrs)}
 
 
+def get_props_from_nested_dict(nested, objs_name, objs_order):
+    props = {}
+    for i in objs_order:
+        v = nested[i]
+        for k, v in v.items():
+            if(k in props):
+                props[k].append(v)
+            else:
+                props[k] = [v]
+    return props
+
+
+
 
 # SETTER FUNCTIONS ----------------------------------------------------------------------------------------------------
 
@@ -372,11 +382,10 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
                 # Set ticks only on one side, according to which 'left'|'right', 'bottom'|'top' spine is ordered last
                 # in which_spines
                 sp.axis.set_ticks_position(ax_dir)
-        # Handle RGB color input
-        for col in ['edgecolor', 'facecolor']:
-            if(col in spine_props):
-                if(isinstance(spine_props[col], tuple) and 3 > len(spine_props[col]) <= 4):
-                    spine_props[col] = [spine_props[col]]
+        # Handle RGB(A) color input
+        if('color' in spine_props):
+            if(isinstance(spine_props['color'], tuple) and 3 < len(spine_props['color']) <= 4):
+                spine_props['color'] = [spine_props['color']]
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_spines, 'spine', **spine_props)
 
@@ -721,7 +730,8 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
         objs_props: Properties to apply to element object(s). If None then objects were specified but no properties
             were, so an error is raised. For getter-like functions this is passed as False rather than None, even though
             no properties are specified, to avoid this error.
-        objs_master (list): Master list of objects used to get objects when given integer indexes.
+        objs_master (list|dict): If dict then it is converted to a list of values in order specified in objs_keys. The
+            master list is used to retrieve correct object when given integer|str objs input.
         objs_name (str): Name of object to be passed to error messages.
         objs_keys (list): Keys to use for indexing objs_master if type(objs_master) is dict
     Returns: 
@@ -761,6 +771,7 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
                     indexes = utils.parse_str_ranges(wo)
                     for i in indexes:
                         try:
+                            print(wo, indexes, objs_master[i])
                             objs_return.append(objs_master[i])
                         except IndexError as e:
                             print("IndexError: input index '{}' exceeds {} list with length of {}."
@@ -852,8 +863,9 @@ def _get_props(ax, objs, objs_master, objs_name, objs_keys=None, get_ticks=None)
     # Fix copied attribute names used for property access from user-friendly defaults.json names to those that
     # matplotlib uses internally - NONE DEFINED SO FAR
     objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
-    objs_attrs_proper[objs_attrs_proper.index('direction')] = 'tickdir'
-    objs_props = {k: [] for k in objs_attrs}
+    if('direction' in objs_attrs):
+        objs_attrs_proper[objs_attrs_proper.index('direction')] = 'tickdir'
+    objs_props = {}
     # Iterate through objects
     for i, wo in enumerate(objs):
         if(objs_keys):
@@ -882,6 +894,8 @@ def _get_tick_props(axes, tick_type):
             tick_props = axes._major_tick_kw
         elif(tick_type == 'minor'):
             tick_props = axes._minor_tick_kw
+        else:
+            raise ValueError("Unrecognised tick type. Only 'major' or 'minor are allowed.")
     except AttributeError as e:
         print("Can not access private variable '_major_tick_kw'. Matplotlib may have been updated and changed this "
               "variable. Getting major tick properties is no longer possible.".format(re.findall("'_.+'", e.args[0])[-1]))
@@ -962,8 +976,8 @@ def _set_props(objs, objs_name, set_ticks=None, **kwargs):
         else:
             if(len(v) < len(objs)):
                 kwargs[k] = utils.map_array(v, len(objs))
-                warnings.warn("Too few arguments ({3}) set for {0} {1} property. Mapping input {1} properties to all "
-                              "{0} objects ({2}).".format(objs_name, k, len(objs), len(v)))
+                warnings.warn("Too few arguments ({3}) set for {0} {1} property. Attempting to map input {1} properties"
+                              " to all {0} objects ({2}).".format(objs_name, k, len(objs), len(v)))
         # Set each property for each appropriate object
         for w, kv in zip(objs, kwargs.get(k)):
             if(set_ticks):

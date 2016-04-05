@@ -42,26 +42,25 @@ def parse_str_ranges(str_in):
     '''Generate a flattened range of numbers given an input of colon-dash-and-comma-separated numbers.
     Args:
         str_in (str): Range of numbers requested.
-            colon/dash separated = range between
+            colon|dash separated = range between
                 e.g. 0:2 = 0, 1, 2
                 e.g. 1-4 = 1, 2, 3, 4
             comma separated = individual number
                 e.g. 5, 6, 7 = 5, 6, 7
 
     Returns:
-        (list): Flattened list of all numbers within input ranges.
+        (list): Parsed number ranges.
     '''
-    range_colon = [list(range(r[0], r[1]+1)) for r in [[int(x) for x in c.split(':')] for c in re.findall('\d+:\d+', str_in)]]
-    range_dash = [list(range(r[0], r[1]+1)) for r in [[int(x) for x in c.split('-')] for c in re.findall('\d+-\d+', str_in)]]
-    range_comma = [[int(x) for x in c.split(',')] for c in re.findall('\d+,\d+', str_in)]
-    # Flatten, numerically sort and remove duplicates from resultant lists
-    if(len(range_colon) > 0 or len(range_dash) > 0 or len(range_comma) > 0):
-        return list(set(sorted([item for sublist in range_colon + range_dash + range_comma for item in sublist])))
+    def range_unpacker(match):
+        return "{}".format(','.join([str(_) for _ in range(int(match.group(1)), int(match.group(2))+1)]))
+    # Convert colon|dash-separated values into integer ranges and then convert to comma-separated string list
+    range_unpacked = re.sub('(\d+):(\d+)', range_unpacker, str_in)
+    range_unpacked = re.sub('(\d+)-(\d+)', range_unpacker, range_unpacked)
+
+    if(len(range_unpacked) > 0):
+        return [int(_) for _ in range_unpacked.split(',')]  # Convert comma-separated string list into integer list
     else:
-        if(str_in.isdigit()):
-            return [int(str_in)]
-        else:
-            raise ValueError("input string '{}' can not be parsed into integer ranges.".format(str_in))
+        raise ValueError("input string '{}' can not be parsed into integer ranges.".format(str_in))
 
 def exp_to_log(x, p):
     return "{:.0f}".format(math.log10(x))
