@@ -14,6 +14,9 @@
     ],
     "default_mathtext": "stixsans",
     "dpi": 300,
+	"labels_order": [
+		"x",
+		"y"],
 	"labels_props": {
 		"fontsize": [],
 		"fontname": [],
@@ -60,6 +63,11 @@
         "right",
         "top"
     ],
+	"spines_order": [
+		"left", 
+		"bottom", 
+		"right", 
+		"top"],
     "spines_props": {
         "edgecolor": [],
         "facecolor": [],
@@ -74,6 +82,9 @@
     },
     "tick_dir": "out",
     "ticklabel_pad": 7.5,
+	"ticks_order": [
+		"x",
+		"y"],
 	"ticks_props": {
 		"size": [],
 		"width": [],

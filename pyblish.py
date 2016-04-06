@@ -13,27 +13,27 @@ import re
 from utils import utils
 
 # ToDo: Main
-# ***
-# Confirm getter functions work correctly
-# Getter functions return dictionary of key names as object names so that
-# user can parse output as desired
-# But output should be easily convertable into input that works in setter
-# functions
 
-# Spines = DONE!, Ticks = DONE!, Labels = DONE!, Lines = DONE!
-# Markers = ?
-# Texts = ?
-# Legend = ?
-# ***
+# Maybe move line, marker text logic from set_legend_props to respective functions
+# so that can get line, marker, text properties in legend using simple boolean
+# legend_lines|markers|texts = True (which is already defined!)
+# That was set_legend_props can be strictly for frame properties
+# And can mirror this structure in the getter functions
 
-# Finish function docstrings - nearly all done
+# Add get_linestyles function as wrapper around Line2D.set_linestyle docstring?
 # Add fuzzy logic to font name search?
+
 # add custom exceptions to get functions?
 # add custom exceptions to set functions?
 # add exceptions to utils
+
 # add memoization for caching of default parameters?
 
 # set custom colour cycle for lines to nice sequence - integrate ColorMapper module as utils package
+
+spines_default_order = ['left', 'bottom', 'right', 'top']
+ticks_default_order = ['x', 'y']
+labels_default_order = ['x', 'y']
 
 
 class DotDict(dict):
@@ -100,7 +100,7 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
         if(which_markers):
             if(ax.collections):
                 set_marker_props(ax, 'all', marker_props=dict(
-                        sizes=[100, 400],#defaults_dict.marker_size,
+                        sizes=[[100, 50, 200], 400],#defaults_dict.marker_size,
                         linewidth=defaults_dict.line_width*2, linestyle=[['-', ':'], ['-', ':']],
                         facecolor=['red', 'green'], edgecolor=[defaults_dict.col_cycle]*2,
                         symbols=['x', 'x']))
@@ -127,7 +127,8 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
 
 
 def get_spine_props(ax, which_spines):
-    """Get properties of spines.
+    """Get properties of spines. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the spine properties are returned in the default order: 'left', 'bottom', 'right', 'top'.
     Args:
         ax (matplotlib.axes): Axis object.
         which_spines (int|str|matplotlib.spines.Spine): Spine index(es).
@@ -138,12 +139,14 @@ def get_spine_props(ax, which_spines):
     Returns:
         (dict): Spine properties for each spine specified (e.g. 'left', 'bottom', 'right', 'top') as a nested dictionary.
     """
-    return _get_props(ax, which_spines, ax.spines, 'spine', ['left', 'bottom', 'right', 'top'])
+    defaults = DotDict(_load_defaults())
+    return _get_props(ax, which_spines, ax.spines, 'spine', list(defaults.spines_props.keys()), defaults.spines_order)
 
 
 def get_tick_props(ax, which_axes, tick_type='major'):
-    """Get properties of ticks. Uses custom logic specifically for ticks as they are not gettable in the same way as
-    other matplotlib objects.
+    """Get properties of ticks. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the tick properties are returned in the default order: 'x', 'y'. Uses custom logic specifically for ticks as
+    they are not gettable in the same way as other matplotlib objects.
     Args:
         ax (matplotlib.axes): Axis object.
         which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
@@ -155,11 +158,14 @@ def get_tick_props(ax, which_axes, tick_type='major'):
     Returns:
         (dict): Tick properties for each set of ticks specified (e.g. 'x', 'y') as a nested dictionary.
     """
-    return _get_props(ax, which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', ['x', 'y'], tick_type)
+    defaults = DotDict(_load_defaults())
+    return _get_props(ax, which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', list(defaults.ticks_props.keys()),
+                      defaults.ticks_order, tick_type)
 
 
 def get_label_props(ax, which_axes):
-    """Get properties of labels.
+    """Get properties of labels. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the label properties are returned in the default order: 'x', 'y'.
     Args:
         ax (matplotlib.axes): Axis object.
         which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
@@ -170,11 +176,14 @@ def get_label_props(ax, which_axes):
     Returns:
         (dict): Label properties for each label specified (e.g. 'x', 'y') as a nested dictionary.
     """
-    return _get_props(ax, which_axes, {'x': ax.xaxis.label, 'y': ax.yaxis.label}, 'label', ['x', 'y'])
+    defaults = DotDict(_load_defaults())
+    return _get_props(ax, which_axes, {'x': ax.xaxis.label, 'y': ax.yaxis.label}, 'label',
+                      list(defaults.labels_props.keys()), defaults.labels_order)
 
 
 def get_line_props(ax, which_lines, legend_lines=False):
-    """Get properties of lines.
+    """Get properties of lines. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the line properties are returned in the default order: '0', '1', '2' etc.
     Args:
         ax (matplotlib.axes): Axis object.
         which_lines (int|str|matplotlib.lines.Line2D): Line index(es).
@@ -194,11 +203,13 @@ def get_line_props(ax, which_lines, legend_lines=False):
     else:
         lines_master = ax.lines
         lines_name = 'line'
-    return _get_props(ax, which_lines, lines_master, lines_name)
+    defaults = DotDict(_load_defaults())
+    return _get_props(ax, which_lines, lines_master, lines_name, list(defaults.lines_props.keys()))
 
 
 def get_marker_props(ax, which_markers, legend_markers=False):
-    """Get properties of marker collections.
+    """Get properties of marker collections. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the marker collection properties are returned in the default order: '0', '1', '2' etc.
     Args:
         ax (matplotlib.axes): Axis object.
         which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es).
@@ -213,16 +224,20 @@ def get_marker_props(ax, which_markers, legend_markers=False):
     """
     if(legend_markers):
         # Get appropriate markers from legend handles
-        markers_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.markers.marker2D)]
+        markers_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.collections.PathCollection)]
         markers_name = 'legend marker collection'
     else:
         markers_master = ax.collections
         markers_name = 'marker collection'
-    return _get_props(ax, which_markers, markers_master, markers_name)
-
+    defaults = DotDict(_load_defaults())
+    marker_props = _get_props(ax, which_markers, markers_master, markers_name, list(defaults.markers_props.keys()))
+    # Convert sizes output into nested lists
+    marker_props['sizes'] =  [list(x) for x in marker_props['sizes']]
+    return marker_props
 
 def get_text_props(ax, which_texts, legend_texts=False):
-    """Get properties of texts.
+    """Get properties of texts. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the text properties are returned in the default order: '0', '1', '2' etc.
     Args:
         ax (matplotlib.axes): Axis object.
         which_texts (int|str|matplotlib.texts.text2D): text index(es).
@@ -242,29 +257,33 @@ def get_text_props(ax, which_texts, legend_texts=False):
     else:
         texts_master = ax.texts
         texts_name = 'text'
-    return _get_props(ax, which_texts, texts_master, texts_name)
+    defaults = DotDict(_load_defaults())
+    return _get_props(ax, which_texts, texts_master, texts_name, list(defaults.texts_props.keys()))
 
 
-def get_legend_props(ax, which_lines=None, which_markers=None, which_texts=None):
-    """Get properties of legend frame or lines or markers or texts. Frame properties are returned only if
-    which_lines = which_markers = which_texts = None to avoid triply nested dictionaries as output.
+def get_legend_props(ax, obj_type='frame', which_objs=None):
+    """Get properties of legend frame or lines or markers or texts.  The lines, markers and texts properties are
+    returned in the order specified. If 'all' is given instead of an order then the properties are returned in the
+    default order: '0', '1', '2' etc.
+    Frame properties are returned only if which_lines = which_markers = which_texts = None.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_lines/which_markers/which_texts (int|str|matplotlib objects): Object index(es).
+        which_objs (int|str|matplotlib objects): Object index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all objects.
             Comma-dash-colon separated strings can be used to select objects in plotted order.
                 e.g. '0' = '1st object', '0,1' = '1st, 2nd object', '1:3' = '2nd, 3rd, 4th object'
+        obj_type (str): Type of legend object(s) to get properties for.
     Returns:
         (dict): text properties for each text specified (e.g. '0', '1', 'all') as a nested dictionary.
     """
-    if(which_lines):
-        return get_line_props(ax, which_lines, True)
-    elif(which_markers):
-        return get_marker_props(ax, which_markers, True)
-    elif(which_texts):
-        return get_text_props(ax, which_texts, True)
-    else:
+    if(obj_type.lower() in ['line', 'lines']):
+        return get_line_props(ax, which_objs, True)
+    elif(obj_type.lower() in ['marker', 'markers']):
+        return get_marker_props(ax, which_objs, True)
+    elif(obj_type.lower() in ['text', 'texts']):
+        return get_text_props(ax, which_objs, True)
+    elif(obj_type.lower() == 'frame'):
         # Get list of attributes to retrieve for legend using defaults.json file
         legend_attrs = list(DotDict(_load_defaults())['legend_props'].keys())
         legend_attrs_proper = legend_attrs.copy()  # Copy legend attributes
@@ -275,19 +294,9 @@ def get_legend_props(ax, which_lines=None, which_markers=None, which_texts=None)
         # Create property dictionary using built in getter functions for matplotlib object and user-friendly attribute
         # names
         return {n: getattr(ax.legend_, k) for (k, n) in zip(legend_attrs_proper, legend_attrs)}
-
-
-def get_props_from_nested_dict(nested, objs_name, objs_order):
-    props = {}
-    for i in objs_order:
-        v = nested[i]
-        for k, v in v.items():
-            if(k in props):
-                props[k].append(v)
-            else:
-                props[k] = [v]
-    return props
-
+    else:
+        print("InputError: Unrecognized legend object. Only 'lines', 'markers', 'texts' and 'frame' are valid.")
+        return None
 
 
 
@@ -362,7 +371,6 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
     # Get appropriate spine object(s) from input as list
     which_spines = _get_plot_objects(which_spines, spine_props, ax.spines, 'spine',
                                      ['left', 'bottom', 'right', 'top'])
-    print(which_spines)
     if(which_spines):
         spines = ax.spines
         spines_dict = {'left': ax.yaxis, 'bottom': ax.xaxis, 'right': ax.yaxis, 'top': ax.xaxis}
@@ -557,6 +565,13 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
     which_texts = _get_plot_objects(which_texts, text_props, texts_master,
                                      texts_name)
     if(which_texts):
+        if(legend_texts and 'fontsize' in text_props):
+            # Check if more than one fontsize specified
+            if(len(set(text_props['fontsize'])) > 1):
+                warnings.warn("Only one fontsize can be used in legend text.")
+        if(legend_texts and 'fontname' in text_props):
+            warnings.warn("Legend font can not be changed this way as it is rendered as mathtext. "
+                          "Use set_font('font', mathtext=True) instead.")
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_texts, texts_name, **text_props)
 
@@ -606,6 +621,15 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
     Returns:
         None
     """
+    # Get existing line, marker, text properties if frame properties defined as this will plot a new legend with default
+    # line, marker, text properties
+    if(frame_props):
+        line_props_orig = get_line_props(ax, 'all', True)
+        marker_props_orig = get_marker_props(ax, 'all', True)
+        text_props_orig = get_text_props(ax, 'all', True)
+        text_props_orig.pop('fontname')  # Avoid triggering warning about setting legend text font
+    else:
+        line_props_orig, marker_props_orig, text_props_orig = None, None, None
 
     # Assign legend properties - reverts to default values if not specified
     legend = ax.get_legend()
@@ -627,11 +651,16 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
     for var_name in ['columnspacing', 'labelspacing', 'handlelength',
                      'numpoints', 'scatterpoints']:
         frame_props[var_name] = _get_frame_props(legend, frame_props, var_name)
-
     # Plot new legend with updated line and marker properties if they've been changed and specified legend properties
     ax.legend(**frame_props)
 
-    # Set legend line properties
+    # Preserve existing line, marker, text properties before new legend was plotted
+    if(line_props_orig and marker_props_orig and text_props_orig):
+        set_line_props(ax, 'all', line_props_orig, legend_lines=True)
+        set_marker_props(ax, 'all', marker_props_orig, legend_markers=True)
+        set_text_props(ax, 'all', text_props_orig, legend_texts=True)
+
+    # Set line properties
     set_line_props(ax, which_lines, line_props, legend_lines=True)
     # Set legend marker properties
     set_marker_props(ax, which_markers, marker_props, legend_markers=True)
@@ -730,8 +759,8 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
         objs_props: Properties to apply to element object(s). If None then objects were specified but no properties
             were, so an error is raised. For getter-like functions this is passed as False rather than None, even though
             no properties are specified, to avoid this error.
-        objs_master (list|dict): If dict then it is converted to a list of values in order specified in objs_keys. The
-            master list is used to retrieve correct object when given integer|str objs input.
+        objs_master (list|dict): Used to retrieve correct object given int|str input. If dict type then it is converted
+        to a list of values in order specified in objs_keys.
         objs_name (str): Name of object to be passed to error messages.
         objs_keys (list): Keys to use for indexing objs_master if type(objs_master) is dict
     Returns: 
@@ -771,7 +800,6 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
                     indexes = utils.parse_str_ranges(wo)
                     for i in indexes:
                         try:
-                            print(wo, indexes, objs_master[i])
                             objs_return.append(objs_master[i])
                         except IndexError as e:
                             print("IndexError: input index '{}' exceeds {} list with length of {}."
@@ -834,12 +862,12 @@ def _get_frame_props(legend, frame_props, var_name, private=False):
         return var
 
 
-def _get_props(ax, objs, objs_master, objs_name, objs_keys=None, get_ticks=None):
+def _get_props(ax, objs, objs_master, objs_name, objs_attrs, objs_keys=None, get_ticks=None):
     """Get plotted object properties.
     Args:
         objs (int|str|matplotlib objects): Object index(es).
             Input is parsed within _get_plot_objects.
-        objs_master (list): Master list of objects used to get objects when given integer indexes.
+        objs_master (list|dict): Used to retrieve correct object indexes.
         objs_name (str): Name of object to be passed to error messages.
         objs_keys (list): Keys to use for indexing objs_master and ordering objs if type(objs_master) is dict
         get_ticks (str): Objects are ticks if defined as tick type ('major'|'minor') so get properties using built-in
@@ -852,10 +880,6 @@ def _get_props(ax, objs, objs_master, objs_name, objs_keys=None, get_ticks=None)
     # Get appropriate objects from input as list - if objs_keys is defined get objects in order specified by objs_keys
     objs = _get_plot_objects(objs, False, objs_master,
                                       objs_name, objs_keys)
-    # Get attribute name from stripped down object name that is used for error messages
-    defaults_attr_name = re.sub('legend | collection', '', objs_name)+'s_props'
-    # Get list of attributes to retrieve for object using defaults.json file
-    objs_attrs = list(DotDict(_load_defaults())[defaults_attr_name].keys())
     # Fix attribute names used as output keys from user-friendly defaults.json names to those that matplotlib uses
     # internally
     if('symbols' in objs_attrs):
@@ -866,18 +890,13 @@ def _get_props(ax, objs, objs_master, objs_name, objs_keys=None, get_ticks=None)
     if('direction' in objs_attrs):
         objs_attrs_proper[objs_attrs_proper.index('direction')] = 'tickdir'
     objs_props = {}
-    # Iterate through objects
-    for i, wo in enumerate(objs):
-        if(objs_keys):
-            key_name = objs_keys[i]
-        else:
-            key_name = i
-        # Add to property dictionary using built in getter functions for matplotlib object and user-friendly attribute
-        # names
+    # Iterate through object attributes and add to property dictionary using built in getter functions for matplotlib
+    # object and user-friendly attribute names
+    for n, k in zip(objs_attrs, objs_attrs_proper):
         if(get_ticks):
-            objs_props[key_name] = {objs_attrs[objs_attrs_proper.index(k)]: v for k, v in _get_tick_props(wo, get_ticks).items() if k in objs_attrs_proper}
+            objs_props[n] = [_get_tick_props(wo, get_ticks).get(k) for wo in objs]
         else:
-            objs_props[key_name] = {n: plt.getp(wo, k) for k, n in zip(objs_attrs_proper, objs_attrs)}  # Add property to key name list
+            objs_props[n] = [plt.getp(wo, k) for wo in objs]
     return objs_props
 
 

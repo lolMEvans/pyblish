@@ -36,35 +36,9 @@ ax.set_ylabel('LOL') # '$\mathrm{(n/n_0)^w}$')
 
 
 pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=False)
-pyblish.set_spine_props(ax, 'bottom', {'linewidth': 3.0, 'color': (0, 0, 1, 0.5)}, True)
-
-pyblish.set_line_props(ax, '2,0', {'color': ['blue', 'green'], 'linestyle': ['-', '--']})
-# line_props = pyblish.get_line_props(ax, '2,0')
-#
-# # Order in correct way! - make into own function in pyblish? Methinks so.
-# # pass in objs_name (e.g. spines) - auto knows order should be in
-# line_props_new = {k: [] for k in line_props[0].keys()}
-# for k, v in line_props.items():
-#     for j, vv in v.items():
-#         line_props_new[j].append(vv)
-# print(line_props_new)
-# print(pyblish.get_props_from_nested_dict(line_props, 'line', range(0, len(line_props))))
-# line_props_new['color'] = ['green', 'red', 'purple']
-#pyblish.set_line_props(ax, 'all', line_props_new)
 
 
 plt.tight_layout()
 # plt.savefig('/localhome/py09mge/test.png', bbox_extra_artists=(l,), bbox_inches='tight')
 plt.show()
 # plt.close()
-
-
-
-def trim(seq):
-    trimmed_range = []
-    seen = set()
-    for i in seq:
-        if(i not in seen):
-            seen.add(i)
-            trimmed_range.append(i)
-    return trimmed_range
