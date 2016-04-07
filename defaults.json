@@ -14,10 +14,10 @@
     ],
     "default_mathtext": "stixsans",
     "dpi": 300,
-	"labels_order": [
+	"label_order": [
 		"x",
 		"y"],
-	"labels_props": {
+	"label_props": {
 		"fontsize": [],
 		"fontname": [],
 		"color": []
@@ -32,16 +32,21 @@
 		"handleheight": 0.7,
 		"handletextpad": 0.8,
 		"numpoints": 3,
-		"scatterpoints": 3
+		"scatterpoints": 3,
+		"bbox_to_anchor": [
+			0.5, 
+			0.75, 
+			0, 
+			0]
 	},
     "line_style": "-",
-    "lines_props": {
+    "line_props": {
         "color": [],
         "linestyle": [],
         "linewidth": []
     },
     "majortick_size": 6.0,
-    "markers_props": {
+    "marker_props": {
         "edgecolor": [],
         "facecolor": [],
         "linestyle": [],
@@ -57,35 +62,29 @@
         "top": "ax.xaxis"
     },
     "spine_col": "black",
-    "spines": [
-        "left",
-        "bottom",
-        "right",
-        "top"
-    ],
-	"spines_order": [
+	"spine_order": [
 		"left", 
 		"bottom", 
 		"right", 
 		"top"],
-    "spines_props": {
+    "spine_props": {
         "edgecolor": [],
         "facecolor": [],
         "linestyle": [],
         "linewidth": [],
         "visible": []
     },
-    "texts_props": {
+    "text_props": {
         "color": [],
         "fontname": [],
         "fontsize": []
     },
     "tick_dir": "out",
     "ticklabel_pad": 7.5,
-	"ticks_order": [
+	"tick_order": [
 		"x",
 		"y"],
-	"ticks_props": {
+	"tick_props": {
 		"size": [],
 		"width": [],
 		"color": [],

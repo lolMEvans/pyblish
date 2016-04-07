@@ -14,11 +14,15 @@ from utils import utils
 
 # ToDo: Main
 
-# Maybe move line, marker text logic from set_legend_props to respective functions
-# so that can get line, marker, text properties in legend using simple boolean
-# legend_lines|markers|texts = True (which is already defined!)
-# That was set_legend_props can be strictly for frame properties
-# And can mirror this structure in the getter functions
+# Move line, marker text logic from set_legend_props/get_legend_props to respective
+# functions. Then set_legend_props/get_legend_props can be strictly for frame
+# properties ### DONE
+#
+# Add multiple legend support for set_legend_props and get_legend_props ### DONE
+# Compatible with tuple, bbox object or list of aforementioned input for bbox_to_anchor
+
+# Change out '-' in parse_str_ranges to only mean negative index?
+# Therefore only have ':' for range?
 
 # Add get_linestyles function as wrapper around Line2D.set_linestyle docstring?
 # Add fuzzy logic to font name search?
@@ -49,7 +53,7 @@ class DotDict(dict):
 def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='all',
                    which_spines=('left', 'bottom'),
                    which_lines='all', which_markers='all', which_texts='all',
-                   which_legend_lines='all', which_legend_markers='all', which_legend_texts='all',
+                   which_frames='all',
                    change_log_scales=True):
 
     # Convert dictionary to DotDict- a dict wrapper that allows dot notation
@@ -90,32 +94,37 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
                     direction=defaults_dict.tick_dir, pad=defaults_dict.ticklabel_pad,
                     labelsize=defaults_dict.ticklabel_size, labelcolor='red'),
                     tick_type='minor')
-        # Set line properties using default line properties
+        # Set line and legend line properties using default line properties
         if(which_lines):
-            if(ax.lines):
-                set_line_props(ax, [0,1], line_props=dict(
-                        linewidth=defaults_dict.line_width*2, linestyle='-',
-                        color=defaults_dict.col_cycle))
-        # Set marker properties using default marker properties
+            default_line_props = {'linewidth': defaults_dict.line_width*5,
+                                  'linestyle': '-',
+                                  'color': defaults_dict.col_cycle}
+            set_line_props(ax, [0,1], line_props=default_line_props)
+            set_line_props(ax, 'all', line_props=default_line_props, legend_lines=True)
+        # Set marker and legend marker properties using default marker properties
         if(which_markers):
-            if(ax.collections):
-                set_marker_props(ax, 'all', marker_props=dict(
+            default_marker_props=dict(
                         sizes=[[100, 50, 200], 400],#defaults_dict.marker_size,
                         linewidth=defaults_dict.line_width*2, linestyle=[['-', ':'], ['-', ':']],
                         facecolor=['red', 'green'], edgecolor=[defaults_dict.col_cycle]*2,
-                        symbols=['x', 'x']))
+                        symbols=['x', 'x'])
+            set_marker_props(ax, 'all', marker_props=default_marker_props)
+            set_marker_props(ax, 'all', marker_props=default_marker_props, legend_markers=True)
         # Set text properties using default text properties
         if(which_texts):
-            set_text_props(ax, 'all', text_props=dict(
+            default_text_props=dict(
                     fontsize=defaults_dict.texts_size, fontname='Arial',
-                    color='green'))
-        # Set legend properties using old legend properties and updated plotted lines and markers properties
-        if(which_legend_lines or which_legend_markers or which_legend_texts):
-            if(ax.get_legend() and (ax.lines or ax.collections)):
-                set_legend_props(ax, 'all', None, '0:1',
-                                 line_props=dict(linewidth=10),
-                                 marker_props=dict(),
-                                 text_props={'color': 'blue'})
+                    color='green')
+            set_text_props(ax, 'all', text_props=default_text_props)
+        # Set legend text properties using default legend text properties
+        # (Legend text is not related to plot text as with lines and markers)
+        set_text_props(ax, 'all', text_props={'fontsize': 5}, legend_texts=True)
+
+        # Set legend properties using default legend properties
+        # Add multiple legend support?
+        if(which_frames):
+            set_legend_props(ax, '1', legend_props={'frameon': True, 'handlelength': 2,
+                                                    'bbox_to_anchor': (0.5, 0.9, 0, 0)})
         # Set axes log scale properties
         if(change_log_scales):
             set_log_exponents(ax, 'all')
@@ -140,7 +149,7 @@ def get_spine_props(ax, which_spines):
         (dict): Spine properties for each spine specified (e.g. 'left', 'bottom', 'right', 'top') as a nested dictionary.
     """
     defaults = DotDict(_load_defaults())
-    return _get_props(ax, which_spines, ax.spines, 'spine', list(defaults.spines_props.keys()), defaults.spines_order)
+    return _get_props(ax, which_spines, ax.spines, 'spine', list(defaults.spine_props.keys()), defaults.spine_order)
 
 
 def get_tick_props(ax, which_axes, tick_type='major'):
@@ -159,8 +168,8 @@ def get_tick_props(ax, which_axes, tick_type='major'):
         (dict): Tick properties for each set of ticks specified (e.g. 'x', 'y') as a nested dictionary.
     """
     defaults = DotDict(_load_defaults())
-    return _get_props(ax, which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', list(defaults.ticks_props.keys()),
-                      defaults.ticks_order, tick_type)
+    return _get_props(ax, which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', list(defaults.tick_props.keys()),
+                      defaults.tick_order, tick_type)
 
 
 def get_label_props(ax, which_axes):
@@ -178,7 +187,7 @@ def get_label_props(ax, which_axes):
     """
     defaults = DotDict(_load_defaults())
     return _get_props(ax, which_axes, {'x': ax.xaxis.label, 'y': ax.yaxis.label}, 'label',
-                      list(defaults.labels_props.keys()), defaults.labels_order)
+                      list(defaults.label_props.keys()), defaults.labels_order)
 
 
 def get_line_props(ax, which_lines, legend_lines=False):
@@ -204,7 +213,7 @@ def get_line_props(ax, which_lines, legend_lines=False):
         lines_master = ax.lines
         lines_name = 'line'
     defaults = DotDict(_load_defaults())
-    return _get_props(ax, which_lines, lines_master, lines_name, list(defaults.lines_props.keys()))
+    return _get_props(ax, which_lines, lines_master, lines_name, list(defaults.line_props.keys()))
 
 
 def get_marker_props(ax, which_markers, legend_markers=False):
@@ -230,7 +239,7 @@ def get_marker_props(ax, which_markers, legend_markers=False):
         markers_master = ax.collections
         markers_name = 'marker collection'
     defaults = DotDict(_load_defaults())
-    marker_props = _get_props(ax, which_markers, markers_master, markers_name, list(defaults.markers_props.keys()))
+    marker_props = _get_props(ax, which_markers, markers_master, markers_name, list(defaults.marker_props.keys()))
     # Convert sizes output into nested lists
     marker_props['sizes'] =  [list(x) for x in marker_props['sizes']]
     return marker_props
@@ -258,45 +267,38 @@ def get_text_props(ax, which_texts, legend_texts=False):
         texts_master = ax.texts
         texts_name = 'text'
     defaults = DotDict(_load_defaults())
-    return _get_props(ax, which_texts, texts_master, texts_name, list(defaults.texts_props.keys()))
+    return _get_props(ax, which_texts, texts_master, texts_name, list(defaults.text_props.keys()))
 
 
-def get_legend_props(ax, obj_type='frame', which_objs=None):
-    """Get properties of legend frame or lines or markers or texts.  The lines, markers and texts properties are
-    returned in the order specified. If 'all' is given instead of an order then the properties are returned in the
-    default order: '0', '1', '2' etc.
-    Frame properties are returned only if which_lines = which_markers = which_texts = None.
+def get_legend_props(ax, which_legends):
+    """Get properties of legend. The legend properties are returned in the order specified. If 'all' is given instead
+    of an order then the properties are returned in the default order: '0', '1', '2' etc.
+    All additional legends added via plt.gca().add_artist are automatically processed by default, or can be specified
+    using indexes >=1 (0 = native axis legend).
     Args:
         ax (matplotlib.axes): Axis object.
-        which_objs (int|str|matplotlib objects): Object index(es).
+        ****** replace objs with legends and add support for multiple legends
+        which_legends (int|str|matplotlib.legend.Legend): Legend index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all objects.
             Comma-dash-colon separated strings can be used to select objects in plotted order.
-                e.g. '0' = '1st object', '0,1' = '1st, 2nd object', '1:3' = '2nd, 3rd, 4th object'
-        obj_type (str): Type of legend object(s) to get properties for.
+                e.g. '0' = '1st legend', '0,1' = '1st, 2nd legend', '1:3' = '2nd, 3rd, 4th legend'
+        *******
     Returns:
         (dict): text properties for each text specified (e.g. '0', '1', 'all') as a nested dictionary.
     """
-    if(obj_type.lower() in ['line', 'lines']):
-        return get_line_props(ax, which_objs, True)
-    elif(obj_type.lower() in ['marker', 'markers']):
-        return get_marker_props(ax, which_objs, True)
-    elif(obj_type.lower() in ['text', 'texts']):
-        return get_text_props(ax, which_objs, True)
-    elif(obj_type.lower() == 'frame'):
-        # Get list of attributes to retrieve for legend using defaults.json file
-        legend_attrs = list(DotDict(_load_defaults())['legend_props'].keys())
-        legend_attrs_proper = legend_attrs.copy()  # Copy legend attributes
-        # Fix copied attribute names from user-friendly defaults.json names to those that matplotlib uses internally
-        legend_attrs_proper[legend_attrs_proper.index('loc')] = '_loc'
-        legend_attrs_proper[legend_attrs_proper.index('ncol')] = '_ncol'
-        legend_attrs_proper[legend_attrs_proper.index('frameon')] = '_drawFrame'
-        # Create property dictionary using built in getter functions for matplotlib object and user-friendly attribute
-        # names
-        return {n: getattr(ax.legend_, k) for (k, n) in zip(legend_attrs_proper, legend_attrs)}
-    else:
-        print("InputError: Unrecognized legend object. Only 'lines', 'markers', 'texts' and 'frame' are valid.")
-        return None
+    # Get master list of all legends in plot including additional legends added via add_artist
+    legends_master = [ax.legend_]
+    legends_master.extend([l for l in ax.artists if isinstance(l, matplotlib.legend.Legend)])
+
+    which_legends = _get_plot_objects(which_legends, True, legends_master, 'legend')
+
+    defaults = DotDict(_load_defaults())
+    legend_props = _get_props(ax, which_legends, legends_master, 'legend', list(defaults.legend_props.keys()))
+    # Convert bbox output into tuple (x0, y0, width, height) coords
+    legend_props['bbox_to_anchor'] = [_bbox_to_coords(ax, bbox) for bbox in legend_props['bbox_to_anchor']]
+    return legend_props
+
 
 
 
@@ -560,14 +562,14 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
         texts_name = 'legend text'
     else:
         texts_master = ax.texts
-        texts_name = 'legend'
+        texts_name = 'text'
     # Get appropriate text object(s) from input as list
     which_texts = _get_plot_objects(which_texts, text_props, texts_master,
                                      texts_name)
     if(which_texts):
         if(legend_texts and 'fontsize' in text_props):
-            # Check if more than one fontsize specified
-            if(len(set(text_props['fontsize'])) > 1):
+            # Check if more than one fontsize specified as this is not supported in legend text
+            if(len(set(utils.get_iterable(text_props['fontsize']))) > 1):
                 warnings.warn("Only one fontsize can be used in legend text.")
         if(legend_texts and 'fontname' in text_props):
             warnings.warn("Legend font can not be changed this way as it is rendered as mathtext. "
@@ -576,39 +578,16 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
         _set_props(which_texts, texts_name, **text_props)
 
 
-def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
-                        line_props=None, marker_props=None, text_props=None,
-                        frame_props=None):
-    """Set properties for legend frame and/or any lines, markers, texts. Changes to plotted lines and markers before
-    this function call are reflected in the legend lines/symbols automatically.
+def set_legend_props(ax, which_legends='all', legend_props=None):
+    """Set properties for legends.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_lines/which_markers/which_texts (int|str|matplotlib objects): Object index(es).
+        which_legends (int|str|matplotlib.legend.Legend): Legend index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all objects.
             Comma-dash-colon separated strings can be used to select objects in plotted order.
-                e.g. '0' = '1st object', '0,1' = '1st, 2nd object', '1:3' = '2nd, 3rd, 4th object'
-        line_props (dict): Line properties. Each property can be given as an appropriate type and applied to all lines.
-            Alternatively, a list may be given for each property so that each line is assigned different properties.
-                linewidth (int|float): Line width(s)
-                color (str|tuple): Line color(s) as hex string(s) or RGB tuple(s)
-                linestyle (str): Line style(s): '-', '--', ':'
-        marker_props (dict): Marker collection properties. Each property can be given as an appropriate type and
-            applied to all marker collections. Alternatively, a list may be given for each property so that each marker
-            collection is assigned different properties. Nested lists may also be given to change the properties of
-            individual markers within collections.
-                sizes (list): Marker size(s) applied to each marker within a collection
-                linewidth (int|float): Marker line width(s)
-                linestyle (str): Marker collection line style(s): '-', '--', ':'
-                facecolor (str|tuple): Marker collection face color(s) as hex string(s) or RGB tuple(s)
-                edgecolor (str|tuple): Marker collection line color(s) as hex string(s) or RGB tuple(s)
-                symbols (str|matplotlib.markers.MarkerStyle): Marker symbols
-        text_props (dict): Text properties. Each property can be given as an appropriate type and applied to all lines.
-            Alternatively, a list may be given for each property so that each text is assigned different properties.
-                fontsize (int|float): Text font size(s)
-                color (str|tuple): Text font color(s) as hex string(s) or RGB tuple(s)
-                fontname (str): Text font(s)
-        frame_props (dict): Legend frame properties. See matplotlib.legend documentation for full properties list.
+                e.g. '0' = '1st legend', '0,1' = '1st, 2nd legend', '1:3' = '2nd, 3rd, 4th legend'
+        legend_props (dict): Legend properties. See matplotlib.legend documentation for full properties list.
             loc (int):
             ncol (int): Number of columns
             frameon (bool): Frame border is visible if True
@@ -621,51 +600,29 @@ def set_legend_props(ax, which_lines=None, which_markers=None, which_texts=None,
     Returns:
         None
     """
-    # Get existing line, marker, text properties if frame properties defined as this will plot a new legend with default
-    # line, marker, text properties
-    if(frame_props):
-        line_props_orig = get_line_props(ax, 'all', True)
-        marker_props_orig = get_marker_props(ax, 'all', True)
-        text_props_orig = get_text_props(ax, 'all', True)
-        text_props_orig.pop('fontname')  # Avoid triggering warning about setting legend text font
-    else:
-        line_props_orig, marker_props_orig, text_props_orig = None, None, None
+    # Get master list of all legends in plot including additional legends added via add_artist
+    legends_master = [ax.legend_]
+    legends_master.extend([l for l in ax.artists if isinstance(l, matplotlib.legend.Legend)])
 
-    # Assign legend properties - reverts to default values if not specified
-    legend = ax.get_legend()
-    # Get existing legend bbox coords and convert to axes coords
-    bbox_axcoords = ax.transAxes.inverted().transform(legend.get_bbox_to_anchor().get_points())
-    bbox_x0, bbox_y0 = bbox_axcoords[0][0], bbox_axcoords[0][1]
-    # Position new legend in same place as old one if no frame properties defined or just no 'bbox'_to'anchor' is defined
-    # Otherwise there would be no easy way of specifying that the new legend should be placed where the old one was
-    if(frame_props is None):
-        frame_props = {}  # Initialise frame properties dictionary
-        frame_props['bbox_to_anchor'] = (bbox_x0, bbox_y0)
-    else:
-        frame_props['bbox_to_anchor'] = frame_props.get('bbox_to_anchor', (bbox_x0, bbox_y0))
-    # Set frame properties regardless of whether the dictionary is given or individual properties are set
-    # This is done because a new legend is plotted no matter what so need to send it at least coords
-    for var_name in ['loc', 'ncol']:
-        frame_props[var_name] = _get_frame_props(legend, frame_props, var_name, True)
-    frame_props['frameon'] = _get_frame_props(legend, frame_props, 'drawFrame', True)
-    for var_name in ['columnspacing', 'labelspacing', 'handlelength',
-                     'numpoints', 'scatterpoints']:
-        frame_props[var_name] = _get_frame_props(legend, frame_props, var_name)
-    # Plot new legend with updated line and marker properties if they've been changed and specified legend properties
-    ax.legend(**frame_props)
-
-    # Preserve existing line, marker, text properties before new legend was plotted
-    if(line_props_orig and marker_props_orig and text_props_orig):
-        set_line_props(ax, 'all', line_props_orig, legend_lines=True)
-        set_marker_props(ax, 'all', marker_props_orig, legend_markers=True)
-        set_text_props(ax, 'all', text_props_orig, legend_texts=True)
-
-    # Set line properties
-    set_line_props(ax, which_lines, line_props, legend_lines=True)
-    # Set legend marker properties
-    set_marker_props(ax, which_markers, marker_props, legend_markers=True)
-    # Set legend text properties
-    set_text_props(ax, which_texts, text_props, legend_texts=True)
+    which_legends = _get_plot_objects(which_legends, legend_props, legends_master, 'legend')
+    
+    if(which_legends):
+        # Update legend attribute names to those used for matplotlib legend object
+        for n, k in zip(['bbox_to_anchor', 'loc', 'ncol', 'frameon'],
+                        ['_bbox_to_anchor', '_loc', '_ncol', '_drawFrame']):
+            if(n in legend_props):
+                # Convert (x0, y0, (width, height))tuple|list into Bbox object
+                if(n == 'bbox_to_anchor'):
+                    legend_props[n] = _get_legend_bboxes(ax, legend_props[n])
+                legend_props[k] = legend_props[n]
+                legend_props.pop(n)  # Remove user-friendly names
+        # Position updated legend in same location as previous if bbox_to_anchor is not specified
+        if('_bbox_to_anchor' not in legend_props):
+            legend_props['_bbox_to_anchor'] = [wl.get_bbox_to_anchor() for wl in which_legends]
+        _set_props(which_legends, 'legend', redraw=False, **legend_props)
+        # Update legend artists to reflect changes
+        legend_artists = [wl for wl in which_legends]
+        plt.gca().artists = list(set(plt.gca().artists) | set(legend_artists))
 
 
 def set_log_exponents(ax, which_axes):
@@ -823,14 +780,14 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
 
 
 def _get_marker_paths(symbols, top_level=True):
-    """Get marker path objects from symbols specified.
+    """Get marker path objects from symbols specified recursively.
     Args:
         symbols (list[str]): Marker symbol names (e.g. 'x', 'o', '$word$ etc.).
         top_level: Paths objects is converted to list if True as built-in matplotlib function takes iterable input.
-
     Returns:
         paths (matplotlib.collections.PathCollection)
     """
+    assert isinstance(symbols, list)
     paths = symbols
     for i, s in enumerate(symbols):
         if(isinstance(s, list)):
@@ -847,19 +804,25 @@ def _get_marker_paths(symbols, top_level=True):
     return paths
 
 
-def _get_frame_props(legend, frame_props, var_name, private=False):
-    try:
-        var = getattr(legend, '_' + var_name if private else var_name)
-    except AttributeError as e:
-        print("Can not access private variable '{0}'. Matplotlib may have been updated and changed this variable. "
-                  "If you want to change legend properties then the variable '{1}' must now be given in 'frame_props'."
-              .format(re.findall("'_.+'", e.args[0])[-1]), var_name)
-        return None
-
-    if(frame_props):
-        return frame_props.get(var_name, var)
+def _get_legend_bboxes(ax, coords):
+    """Get Bbox object from axis coordinates recursively. Input can be tuple or bbox object, or a list of the
+    aforementioned. If a tuple is encountered it is assumed to be bbox coords and converted into a Bbox object.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        coords (tuple|bbox object|list: Coordinates of bbox in axis space.
+    Returns:
+    """
+    if(isinstance(coords, tuple)):
+        coords = _coords_to_bbox(ax, coords)
+    elif(isinstance(coords, list)):
+        for i, c in enumerate(coords):
+            coords[i] = _get_legend_bboxes(ax, c)
+    elif(isinstance(coords, matplotlib.transforms.TransformedBbox)):
+        pass
     else:
-        return var
+        print("Unrecognised value for bbox_to_anchor. Valid inputs are bbox objects, tupls, or list of tuples|bbox objects.")
+
+    return coords
 
 
 def _get_props(ax, objs, objs_master, objs_name, objs_attrs, objs_keys=None, get_ticks=None):
@@ -871,8 +834,7 @@ def _get_props(ax, objs, objs_master, objs_name, objs_attrs, objs_keys=None, get
         objs_name (str): Name of object to be passed to error messages.
         objs_keys (list): Keys to use for indexing objs_master and ordering objs if type(objs_master) is dict
         get_ticks (str): Objects are ticks if defined as tick type ('major'|'minor') so get properties using built-in
-            matplotlib tick keys-values getter function, otherwise if undefined get properties using built-in matplotlib
-            property getter function.
+            matplotlib tick keys-values getter function, otherwise if undefined get properties using getattr.
     Returns:
         objs_props (dict): Properties for plotted object(s) requested. This is returned as a nested dictionary so
             that each object is clearly listed and the user can parse output as desired.
@@ -880,15 +842,21 @@ def _get_props(ax, objs, objs_master, objs_name, objs_attrs, objs_keys=None, get
     # Get appropriate objects from input as list - if objs_keys is defined get objects in order specified by objs_keys
     objs = _get_plot_objects(objs, False, objs_master,
                                       objs_name, objs_keys)
-    # Fix attribute names used as output keys from user-friendly defaults.json names to those that matplotlib uses
-    # internally
+    # Fix attribute names used only as output keys from user-friendly defaults.json names to those that matplotlib uses
+    # internally and which are more appropriate for output
     if('symbols' in objs_attrs):
         objs_attrs[objs_attrs.index('symbols')] = 'paths'
-    # Fix copied attribute names used for property access from user-friendly defaults.json names to those that
-    # matplotlib uses internally - NONE DEFINED SO FAR
+    # Fix copied attribute names used only for property access from user-friendly defaults.json names to those that
+    # matplotlib uses internally
     objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
-    if('direction' in objs_attrs):
+    if(objs_name == 'tick'):
         objs_attrs_proper[objs_attrs_proper.index('direction')] = 'tickdir'
+    if(objs_name == 'legend'):
+        objs_attrs_proper[objs_attrs_proper.index('loc')] = '_loc'
+        objs_attrs_proper[objs_attrs_proper.index('ncol')] = '_ncol'
+        objs_attrs_proper[objs_attrs_proper.index('frameon')] = '_drawFrame'
+        objs_attrs_proper[objs_attrs_proper.index('bbox_to_anchor')] = '_bbox_to_anchor'
+
     objs_props = {}
     # Iterate through object attributes and add to property dictionary using built in getter functions for matplotlib
     # object and user-friendly attribute names
@@ -896,7 +864,7 @@ def _get_props(ax, objs, objs_master, objs_name, objs_attrs, objs_keys=None, get
         if(get_ticks):
             objs_props[n] = [_get_tick_props(wo, get_ticks).get(k) for wo in objs]
         else:
-            objs_props[n] = [plt.getp(wo, k) for wo in objs]
+            objs_props[n] = [getattr(wo, k) for wo in objs]
     return objs_props
 
 
@@ -973,7 +941,7 @@ def _set_rcparams_defaults(defaults_dict):
     rcParams['figure.dpi'] = defaults_dict.dpi
 
 
-def _set_props(objs, objs_name, set_ticks=None, **kwargs):
+def _set_props(objs, objs_name, set_ticks=None, redraw=True, **kwargs):
     """Set plotted object properties.
     Args:
         objs (list): Object(s) to apply property changes to.
@@ -981,6 +949,8 @@ def _set_props(objs, objs_name, set_ticks=None, **kwargs):
         set_ticks (str): Objects are ticks if defined as tick type ('major'|'minor') so set properties using matplotlib
             built-in tick parameter setter function, otherwise if undefined set properties using built-in matplotib
             property setter function.
+        redraw (bool): Use plt.setp if True as this built-in matplotlib function automatically redraws the artist,
+            otherwise use setattr as redrawing is handled elsewhere.
         **kwargs: Properties to set.
     Returns:
         None
@@ -1002,7 +972,10 @@ def _set_props(objs, objs_name, set_ticks=None, **kwargs):
             if(set_ticks):
                 w.set_tick_params(set_ticks, **{k: kv})
             else:
-                plt.setp(w, **{k: kv})
+                if(redraw):
+                    plt.setp(w, **{k: kv})  # Sets property and redraws artist
+                else:
+                    setattr(w, k, kv) # Sets property - redrawing is handled elsewhere
 
 
 
@@ -1067,3 +1040,34 @@ def _check_mathtext(ax, fontname):
     #                           "do not use a custom font, or remove all of the mathtext.")
     for font in utils.get_iterable(fontname):
         print(font)
+
+
+def _coords_to_bbox(ax, coords):
+    """Convert coordinates to matplotlib.transforms.TransformedBbox object in axis space.
+
+    Args:
+        ax (matplotlib.axes._subplots.AxesSubplot): Axis object.
+        coords (tuple): Coordinates in (x0, y0, width, height) format. Width and height are optional parameters.
+
+    Returns:
+        Bbox object at specified coords.
+    """
+    from matplotlib.transforms import Bbox, TransformedBbox
+
+    if(len(coords) == 2):
+        coords = [coords[0], coords[1], 0, 0]
+    return TransformedBbox(Bbox.from_bounds(*coords), ax.transAxes)
+
+
+def _bbox_to_coords(ax, bbox):
+    """Convert matplotlib.transforms.TransformedBbox object to coordinates in axis space.
+
+    Args:
+        ax (matplotlib.axes._subplots.AxesSubplot): Axis object.
+        bbox (matplotlib.transforms.TransformedBbox): Bbox object in axis space.
+
+    Returns:
+        (tuple): Coordinates of bbox in (x0, y0, width, height) format.
+    """
+    coords = ax.transAxes.inverted().transform(bbox.get_points())
+    return (coords[0][0], coords[0][1],  coords[1][0]-coords[0][0], coords[1][1]-coords[0][1])

@@ -16,13 +16,17 @@ n = np.logspace(np.log10(nmin), np.log10(nmax), 20)
 for exp in [0.01, 0.1]:
     y = (n/n0)**exp
     ax.scatter(n, y, s = 5, linestyle= '--', label = '$\mathrm{w = %f}$' % exp)
-    ax.plot(n, y, label = '$\mathrm{w = %f}$' % exp)
+    p1, = ax.plot(n, y, label = '$\mathrm{w = %f}$' % exp)
 
 # Shrink current axis by 20%
 box = ax.get_position()
 #ax.set_position([box.x0, box.y0, box.width * 0.5, box.height])
-l = ax.legend(loc = 'upper center', ncol = 5, columnspacing = 0.6, handlelength = 1.0, handletextpad = 0.4,
+l = plt.legend(handles=[p1], loc = 'upper center', ncol = 5, columnspacing = 0.6, handlelength = 1.0, handletextpad = 0.4,
               bbox_to_anchor=(0.5, 0.75), frameon = False)
+lol = plt.gca().add_artist(l)
+x = plt.legend(loc = 'upper center', ncol = 5, columnspacing = 0.6, handlelength = 1.0, handletextpad = 0.4,
+              bbox_to_anchor=(0.5, 0.25), frameon = False)
+# Add another legend!
 
 ax.set_xscale('log')
 ax.set_yscale('log')
@@ -36,7 +40,9 @@ ax.set_ylabel('LOL') # '$\mathrm{(n/n_0)^w}$')
 
 
 pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=False)
-
+leg_props = pyblish.get_legend_props(ax, '1')
+print(leg_props)
+pyblish.set_legend_props(ax, '0', leg_props)
 
 plt.tight_layout()
 # plt.savefig('/localhome/py09mge/test.png', bbox_extra_artists=(l,), bbox_inches='tight')
