@@ -3,10 +3,14 @@
 #from __future__ import print_function
 
 import warnings
+
+import math
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.ticker import FuncFormatter
+from fuzzywuzzy import process
+import functools
 import json
 import re
 
@@ -14,30 +18,26 @@ from utils import utils
 
 # ToDo: Main
 
-# Move line, marker text logic from set_legend_props/get_legend_props to respective
-# functions. Then set_legend_props/get_legend_props can be strictly for frame
-# properties ### DONE
-#
-# Add multiple legend support for set_legend_props and get_legend_props ### DONE
-# Compatible with tuple, bbox object or list of aforementioned input for bbox_to_anchor
+# Add function to set axes scale and ticklabel notation
 
-# Change out '-' in parse_str_ranges to only mean negative index?
-# Therefore only have ':' for range?
 
-# Add get_linestyles function as wrapper around Line2D.set_linestyle docstring?
-# Add fuzzy logic to font name search?
+# Compact docstrings? using [%(str)] % {str='whatevs'}
+# Move get & set functions next to each other?
+
+# Remove DotDict?
 
 # add custom exceptions to get functions?
 # add custom exceptions to set functions?
 # add exceptions to utils
-
-# add memoization for caching of default parameters?
 
 # set custom colour cycle for lines to nice sequence - integrate ColorMapper module as utils package
 
 spines_default_order = ['left', 'bottom', 'right', 'top']
 ticks_default_order = ['x', 'y']
 labels_default_order = ['x', 'y']
+
+class InputError(Exception):
+    pass
 
 
 class DotDict(dict):
@@ -62,13 +62,15 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
     defaults_dict = _set_params_defaults(defaults_dict, num_cols)
     # Override a selection of default rcParams
     _set_rcparams_defaults(defaults_dict)
+    # Set font
+    set_font(defaults_dict.font)
     # Set mathtext font
-    set_font(defaults_dict.default_mathtext, mathtext=True)
+    set_font(defaults_dict.font_mathtext, mathtext=True)
 
     # Convert aspect variable to number
-    aspect_val = _get_aspect_val(aspect)
+    aspect = _get_aspect(aspect)
     # Set figure size
-    fig_width, fig_height = _get_figure_size(num_cols, aspect_val)
+    fig_width, fig_height = _get_figure_size(num_cols, aspect)
     set_figure_size(fig, fig_width, fig_height, 2.0)
 
     # Apply changes to all axis objects in figure
@@ -81,7 +83,7 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
         # Set axes label properties using default label properties
         if(which_labels):
             set_label_props(ax, 'all', label_props=dict(
-                    fontsize=[defaults_dict.label_size*3, 20], fontname=['Arial', 'Comic Sans MS'], color=None))
+                    fontsize=[defaults_dict.label_size*3, 20], fontname=defaults_dict.font, color=None))
         # Set axes ticks and ticklabel properties using default tick and ticklabel properties
         if(which_ticks):
             set_tick_props(ax, 'all', tick_props=dict(
@@ -113,7 +115,7 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
         # Set text properties using default text properties
         if(which_texts):
             default_text_props=dict(
-                    fontsize=defaults_dict.texts_size, fontname='Arial',
+                    fontsize=defaults_dict.texts_size, fontname=defaults_dict.font,
                     color='green')
             set_text_props(ax, 'all', text_props=default_text_props)
         # Set legend text properties using default legend text properties
@@ -127,7 +129,8 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
                                                     'bbox_to_anchor': (0.5, 0.9, 0, 0)})
         # Set axes log scale properties
         if(change_log_scales):
-            set_log_exponents(ax, 'all')
+            set_axes_scale(ax, 'y', {'scale': 'log', 'basex': 5, 'basey': 5}, ticklabel_exponents=True) # Integrate these two functions??
+            # set_logarithmic_ticklabels(ax, 'all', base = 5)
 
 
 
@@ -143,7 +146,7 @@ def get_spine_props(ax, which_spines):
         which_spines (int|str|matplotlib.spines.Spine): Spine index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'left', 'bottom', 'right', 'top', or 'all' can be used to select all spines.
-            Comma-dash-colon separated strings can be used to select axes in 'left', 'bottom', 'right', 'top' order.
+            Comma-colon separated strings can be used to select axes in 'left', 'bottom', 'right', 'top' order.
                 e.g. '0' = 'left', '0,1' = 'left, bottom', '1:3' = 'bottom, right, top'
     Returns:
         (dict): Spine properties for each spine specified (e.g. 'left', 'bottom', 'right', 'top') as a nested dictionary.
@@ -161,7 +164,7 @@ def get_tick_props(ax, which_axes, tick_type='major'):
         which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-            Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
                 e.g. '0' = 'x', '0,1' = 'x, y'
         tick_type (str): 'major' or 'minor'.
     Returns:
@@ -180,7 +183,7 @@ def get_label_props(ax, which_axes):
         which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-            Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
                 e.g. '0' = 'x', '0,1' = 'x, y'
     Returns:
         (dict): Label properties for each label specified (e.g. 'x', 'y') as a nested dictionary.
@@ -198,7 +201,7 @@ def get_line_props(ax, which_lines, legend_lines=False):
         which_lines (int|str|matplotlib.lines.Line2D): Line index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all lines.
-            Comma-dash-colon separated strings can be used to select lines in plotted order.
+            Comma-colon separated strings can be used to select lines in plotted order.
                 e.g. '0' = '1st line', '0,1' = '1st, 2nd line', '1:3' = '2nd, 3rd, 4th line'
         legend_lines (bool): Sets properties for legend lines if True, otherwise sets properties for lines plotted on
             specified axis object.
@@ -224,7 +227,7 @@ def get_marker_props(ax, which_markers, legend_markers=False):
         which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all marker collections.
-            Comma-dash-colon separated strings can be used to select marker collections in plotted order.
+            Comma-colon separated strings can be used to select marker collections in plotted order.
                 e.g. '0' = '1st marker col', '0,1' = '1st, 2nd marker col', '1:3' = '2nd, 3rd, 4th marker col'
         legend_markers (bool): Sets properties for legend markers if True, otherwise sets properties for markers plotted
             on specified axis object.
@@ -252,7 +255,7 @@ def get_text_props(ax, which_texts, legend_texts=False):
         which_texts (int|str|matplotlib.texts.text2D): text index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all texts.
-            Comma-dash-colon separated strings can be used to select texts in plotted order.
+            Comma-colon separated strings can be used to select texts in plotted order.
                 e.g. '0' = '1st text', '0,1' = '1st, 2nd text', '1:3' = '2nd, 3rd, 4th text'
         legend_texts (bool): Sets properties for legend texts if True, otherwise sets properties for texts plotted on
             specified axis object.
@@ -281,7 +284,7 @@ def get_legend_props(ax, which_legends):
         which_legends (int|str|matplotlib.legend.Legend): Legend index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all objects.
-            Comma-dash-colon separated strings can be used to select objects in plotted order.
+            Comma-colon separated strings can be used to select objects in plotted order.
                 e.g. '0' = '1st legend', '0,1' = '1st, 2nd legend', '1:3' = '2nd, 3rd, 4th legend'
         *******
     Returns:
@@ -298,6 +301,32 @@ def get_legend_props(ax, which_legends):
     # Convert bbox output into tuple (x0, y0, width, height) coords
     legend_props['bbox_to_anchor'] = [_bbox_to_coords(ax, bbox) for bbox in legend_props['bbox_to_anchor']]
     return legend_props
+
+
+@functools.lru_cache(2)
+def get_available_fonts():
+    """Use matplotlib.font_manager to get fonts on system.
+    Returns:
+         Alphabetically sorted list of .ttf font names.
+    """
+    FM = fm.FontManager()
+    font_names = set([f.name for f in FM.ttflist])
+    return sorted(font_names)
+
+
+def get_available_linestyles():
+    """Get linestyles accepted by matplotlib.lines.Line2D objects.
+    Returns:
+        Available linestyles.
+    """
+    return ['solid: "-"', 'dashed: "--"', 'dashed-dotted: "-."', 'dotted: ":"', 'custom sequence: "(on, off)"']
+
+
+def print_available_fonts():
+    _print_availables(get_available_fonts)
+
+def print_available_linestyles():
+    _print_availables(get_available_linestyles)
 
 
 
@@ -328,27 +357,42 @@ def set_font(font, mathtext=False):
     Returns:
         None
     """
-    global_fontsets = ['cm', 'sans', 'stixsans']
-    fonts = get_available_fonts()
-    # Check if font is on system
-    if(font in fonts + global_fontsets):
+    default_attr = '_mathtext' if mathtext else ''
+    font = _get_system_font(font, _load_defaults()['font' + default_attr])
+    if(font):
         if(mathtext):
             # Check if font is one of the 3 global fontsets
-            if(font in global_fontsets):
+            if(font in ['cm', 'sans', 'stixsans']):
                 matplotlib.rcParams['mathtext.fontset'] = font
             else:
                 matplotlib.rcParams['mathtext.fontset'] = 'custom'
                 matplotlib.rcParams['mathtext.cal'] = font
                 matplotlib.rcParams['mathtext.rm'] = font
                 matplotlib.rcParams['mathtext.tt'] = font
-                matplotlib.rcParams['mathtext.it'] = "{}:italic".format(font)
-                matplotlib.rcParams['mathtext.bf'] = "{}:bold".format(font)
                 matplotlib.rcParams['mathtext.sf'] = font
         else:
             matplotlib.rcParams['font.family'] = font
+
+
+def get_font(mathtext=False):
+    """Get plot font (normal or mathtext). The method for setting mathtext is experimental and may be removed in future
+    updates to matplotlib.
+    Args:
+        mathtext (bool): Sets mathtext rather than normal plot text if True.
+    Returns:
+        (str): matplotlib.rcParams font parameter.
+    """
+    if(mathtext):
+        if(matplotlib.rcParams['mathtext.fontset'] == 'custom'):
+            return matplotlib.rcParams['mathtext.rm']
+        else:
+            return matplotlib.rcParams['mathtext.fontset']
     else:
-        warnings.warn("Could not set '{}' mathtext font so reverted back to default. "
-                        "Use get_available_fonts() to see a list of fonts on this system.".format(font))
+        return matplotlib.rcParams['font.family'][0]  # font.family is converted to list in built-in matplotlib function
+
+
+def get_default(attr):
+    return _load_defaults()[attr]
 
 
 def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, duplicate_ticks=False):
@@ -358,7 +402,7 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
         which_spines (int|str|matplotlib.spines.Spine): Spine index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'left', 'bottom', 'right', 'top', or 'all' can be used to select all spines.
-            Comma-dash-colon separated strings can be used to select axes in 'left', 'bottom', 'right', 'top' order.
+            Comma-colon separated strings can be used to select axes in 'left', 'bottom', 'right', 'top' order.
                 e.g. '0' = 'left', '0,1' = 'left, bottom', '1:3' = 'bottom, right, top'
         spine_props (dict): Spine properties. Each property can be given as an appropriate type and will be applied to
             all spines. Alternatively, a list may be given for each property so that each spine is assigned different
@@ -405,10 +449,10 @@ def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
     way as other matplotlib objects.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-            Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
                 e.g. '0' = 'x', '0,1' = 'x, y'
         tick_props (dict): Tick properties. Each property can be given as an appropriate type and will be applied to
             all ticks. Alternatively, a list may be given for each property so that each tick collection is assigned
@@ -425,7 +469,7 @@ def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
         None
     """
     if(tick_type not in ['major', 'minor']):
-        print("ValueError: Tick type not recognised. Enter 'major' or 'minor'.")
+        raise InputError("Tick type not recognised. Enter 'major' or 'minor'.")
     # Get appropriate axis/axes objects from input as list
     which_axes = _get_plot_objects(which_axes, tick_props, {'x': ax.xaxis, 'y': ax.yaxis}, tick_type + ' tick',
                                    ['x', 'y'])
@@ -438,10 +482,10 @@ def set_label_props(ax, which_labels, label_props):
     """Set properties for axes labels.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-            Comma-dash-colon separated strings can be used to select axes in 'x', 'y' order.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
                 e.g. '0' = 'x', '0,1' = 'x, y'
         label_props (dict): Label properties. Each property can be given as an appropriate type and applied to all labels.
             Alternatively, a list may be given for each property so that each label is assigned different properties.
@@ -470,7 +514,7 @@ def set_line_props(ax, which_lines, line_props, legend_lines=False):
         which_lines (int|str|matplotlib.lines.Line2D): Line index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all lines.
-            Comma-dash-colon separated strings can be used to select lines in plotted order.
+            Comma-colon separated strings can be used to select lines in plotted order.
                 e.g. '0' = '1st line', '0,1' = '1st, 2nd line', '1:3' = '2nd, 3rd, 4th line'
         line_props (dict): Line properties. Each property can be given as an appropriate type and applied to all lines.
             Alternatively, a list may be given for each property so that each line is assigned different properties.
@@ -502,7 +546,7 @@ def set_marker_props(ax, which_markers, marker_props, legend_markers=False):
         which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all marker collections.
-            Comma-dash-colon separated strings can be used to select marker collections in plotted order.
+            Comma-colon separated strings can be used to select marker collections in plotted order.
                 e.g. '0' = '1st marker col', '0,1' = '1st, 2nd marker col', '1:3' = '2nd, 3rd, 4th marker col'
         marker_props (dict): Marker collection properties. Each property can be given as an appropriate type and
             applied to all marker collections. Alternatively, a list may be given for each property so that each marker
@@ -545,7 +589,7 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
         which_texts (int|str|matplotlib.text.Text): Text index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all texts.
-            Comma-dash-colon separated strings can be used to select texts in plotted order.
+            Comma-colon separated strings can be used to select texts in plotted order.
                 e.g. '0' = '1st text', '0,1' = '1st, 2nd text', '1:3' = '2nd, 3rd, 4th text'
         text_props (dict): Text properties. Each property can be given as an appropriate type and applied to all lines.
             Alternatively, a list may be given for each property so that each text is assigned different properties.
@@ -567,13 +611,18 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
     which_texts = _get_plot_objects(which_texts, text_props, texts_master,
                                      texts_name)
     if(which_texts):
-        if(legend_texts and 'fontsize' in text_props):
-            # Check if more than one fontsize specified as this is not supported in legend text
+        if('fontname' in text_props):
+            if(legend_texts):
+                warnings.warn("Legend font can not be changed this way as it is rendered as mathtext. "
+                          "Use set_font('font', mathtext=True) to set the mathtext font within the plot instead.")
+            else:
+                text_props['fontname'] = _get_system_font(text_props['fontname'], _load_defaults()['font'])
+                if(text_props['fontname']):
+                    _check_for_mathtext(which_texts, text_props['fontname'], texts_name)
+        if('fontsize' in text_props and legend_texts):
+            # More than one fontsize is not supported in legend text
             if(len(set(utils.get_iterable(text_props['fontsize']))) > 1):
                 warnings.warn("Only one fontsize can be used in legend text.")
-        if(legend_texts and 'fontname' in text_props):
-            warnings.warn("Legend font can not be changed this way as it is rendered as mathtext. "
-                          "Use set_font('font', mathtext=True) instead.")
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_texts, texts_name, **text_props)
 
@@ -585,7 +634,7 @@ def set_legend_props(ax, which_legends='all', legend_props=None):
         which_legends (int|str|matplotlib.legend.Legend): Legend index(es).
             Given as a specified type OR list of a specified type.
             'all' can be used to select all objects.
-            Comma-dash-colon separated strings can be used to select objects in plotted order.
+            Comma-colon separated strings can be used to select objects in plotted order.
                 e.g. '0' = '1st legend', '0,1' = '1st, 2nd legend', '1:3' = '2nd, 3rd, 4th legend'
         legend_props (dict): Legend properties. See matplotlib.legend documentation for full properties list.
             loc (int):
@@ -625,31 +674,39 @@ def set_legend_props(ax, which_legends='all', legend_props=None):
         plt.gca().artists = list(set(plt.gca().artists) | set(legend_artists))
 
 
-def set_log_exponents(ax, which_axes):
+# Allow setting of arbitrary axes scale - eg: log, ^2 etc.
+def set_axes_scale(ax, which_axes, scale_props={'scale': 'log', 'base': 10.0}, ticklabel_exponents=False, add_log=True):
     """
-    Set tick labels as logarithmic exponents on requested x/y axis.
     Args:
         ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)) axes indexes.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es).
             Given as a specified type OR list of a specified type.
             Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
+                e.g. '0' = 'x', '0,1' = 'x, y'
+        scale (str): 'log', 'linear', 'symlog' or 'logit'. See matplotlib documentation for an explanation.
+        base (int): Logarithmic base. Only used if scale = 'log'.
+        ticklabel_exponents: Tick labels are converted to exponent values if True. Only used if scale = 'log'.
+        add_log: 'log_base' is added to axis label if True
     Returns:
         None
     """
     # Get appropriate axis/axes objects from input as list
-    axes_dict = {'x': ax.xaxis, 'y': ax.yaxis}
-    which_axes = _get_plot_objects(ax, which_axes, True, axes_dict,
-                                    'Axes', (matplotlib.axis.XAxis, matplotlib.axis.YAxis),
-                                    axes_dict.keys())
+    which_axes = _get_plot_objects(which_axes, False, {'x': ax.xaxis, 'y': ax.yaxis},
+                                    'axis', ['x', 'y'])
+    scales = {'x': ax.set_xscale, 'y': ax.set_yscale}
+
+    # Need to have array input for scales, bases etc. - hmm how to parse - need to do something like
+    # in set_props but more focused
+    scale = scale_props.pop('scale')
     if(which_axes):
-        for wa in which_axes:
-            # Check if axis scale is logarithmic or all tick labels are scientific notation
-            # because in these cases we can assume exponential notation will be good
-            if(wa.get_scale() == 'log' or all(['e' in str(t) for t in wa.get_majorticklocs()])):
-                # Change exponentials notation to log notation - i.e. 10^2, 10^3 -> 2, 3
-                wa.set_major_formatter(FuncFormatter(utils.exp_to_log))
-                # Add log to label text if it's absent
-                _append_log_text(wa)
+        for i, wa in enumerate(which_axes):
+            print(scale_props)
+            scales[wa.axis_name](scale.lower(), **scale_props)
+
+            # Set tick labels to exponents
+            if(scale == 'log' and ticklabel_exponents):
+                _set_ticklabel_exponents(wa, scale_props, add_log)
 
 
 # ToDo: Any other one-off functions for adjusting plotted features?
@@ -657,41 +714,31 @@ def set_log_exponents(ax, which_axes):
 
 # PRIVATE GETTER FUNCTIONS --------------------------------------------------------------------------------------------
 
-# Font related functions -----------------------------------------------
-def get_available_fonts():
-    """Use matplotlib.font_manager to get fonts on system.
-    Returns:
-         Alphabetically sorted list of .ttf font names.
-    """
-    FM = fm.FontManager()
-    font_names = set([f.name for f in FM.ttflist])
-    return sorted(font_names)
 
-
-def _get_aspect_val(aspect):
+def _get_aspect(aspect):
     """Get width-to-height figure aspect ratio given name or value input.
     Args:
-        aspect (str|float): Width-to-height figure aspect ratio name or value.
+        aspect (str|float): Width-to-height figure aspect ratio name or width:height value.
     Returns:
         aspect_return (float): Width-to-height figure aspect ratio.
     """
     aspect_dict = {'square': 1, 'normal': 1.333, 'golden': 1.618, 'widescreen': 1.78}
-    # If aspect is a number use it directly
-    # Otherwise look up aspect in a dictionary to convert to number
     if(isinstance(aspect, (float, int))):
         aspect_return = aspect
     elif(isinstance(aspect, str)):
+        # Convert aspect into a width:height fraction
         if(':' in aspect):
             numerator, denominator = aspect.split(':')
             aspect_return = float(numerator)/float(denominator)
+        # Convert aspect into a width/height fraction from preset dict
         elif(aspect in aspect_dict):
             aspect_return = aspect_dict[aspect]
         else:
-            print("InputError: unregonised apsect name. Accepted names are '{}'.".format("', '".join(aspect_dict.keys())))
-            return None
+            raise InputError("Unrecognised aspect name. Accepted names are '{}'."
+                             .format("', '".join(aspect_dict.keys())))
     else:
-        print("InputError: unrecognised aspect value. Accepted inputs are '{}' or a number.".format("', '".join(aspect_dict.keys())))
-        return None
+        raise InputError("Unrecognised aspect value. Accepted inputs are '{}', a 'width:height' ratio or width/height "
+                         "fraction.".format("', '".join(aspect_dict.keys())))
     return aspect_return
 
 
@@ -726,17 +773,15 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
     if(objs is None):
         # If objs_props is defined then properties are being accessed with setter functions
         if(objs_props):
-            print("InputError: Trying to set {0} properties but no {0}s were specified.".format(objs_name))
+            raise InputError("Trying to set {0} properties but no {0}s were specified.".format(objs_name))
         # If objs_props is False then properties are being accessed with getter functions
         elif(objs_props is False):
-            print("InputError: Trying to get {0} properties but no {0}s were specified.".format(objs_name))
-        return None
+            raise InputError("Trying to get {0} properties but no {0}s were specified.".format(objs_name))
     elif(objs == 'all'):
         objs = objs_master  # Set objects to master list (i.e. all objects)
     # Check if properties have been set
     if(objs_props is None):
-        print("InputError: Trying to set {0} properties but no properties were specified.".format(objs_name))
-        return None
+        raise InputError("Trying to set {0} properties but no properties were specified.".format(objs_name))
     # Parse input and add appropriate plot objects to list
     objs_return = []
 
@@ -752,6 +797,7 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
             objs_return.append(objs_master[wo])
         elif(isinstance(wo, str)):
             # If input is all numbers and '-'/':'/',' then parse input into index ranges
+            wo = wo.replace(' ', '')
             if(all([(c.isdigit() or c in [':', '-', ',']) for c in wo])):
                 try:
                     indexes = utils.parse_str_ranges(wo)
@@ -759,23 +805,20 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
                         try:
                             objs_return.append(objs_master[i])
                         except IndexError as e:
-                            print("IndexError: input index '{}' exceeds {} list with length of {}."
+                            raise InputError("Input index '{}' exceeds {} list with length of {}."
                                   .format(i, objs_name, len(objs_master)))
-                            return None
                 except ValueError as e:
-                    print("ValueError: {}".format(str(e)))
-                    return None
+                    raise InputError("{}".format(str(e)))
             # Otherwise use input as key in master list
             else:
                 try:
                     objs_return.append(objs_master[objs_keys.index(wo)])
                 except ValueError:
-                    print("ValueError: only '{}' and 'all' are accepted object name inputs.".format("', '".join(objs_keys)))
-                    return None
+                    raise InputError("Only '{}' and 'all' are accepted object name inputs.".format("', '".join(objs_keys)))
         elif(isinstance(wo, tuple([type(om) for om in objs_master]))):
             objs_return.append(wo)
         else:
-            print("InputError: unrecognised object '{}'".format(wo))
+            raise InputError("Unrecognised object '{}'".format(wo))
     return objs_return
 
 
@@ -823,6 +866,28 @@ def _get_legend_bboxes(ax, coords):
         print("Unrecognised value for bbox_to_anchor. Valid inputs are bbox objects, tupls, or list of tuples|bbox objects.")
 
     return coords
+
+
+def _get_system_font(font, default_font):
+    """Get name of font on system by taking the closest match between font specified and fonts on system.
+    Args:
+        font (str): Font name.
+    Returns:
+        font (str): Font name as it is defined on system.
+    """
+    # Check if font is one of the 3 global fontsets
+    if(font in ['sans', 'stixsans', 'cm']):
+        return font
+    else:
+        fonts = get_available_fonts()
+        # Compare font to fonts and extract best match if minimum score exceeded
+        font_found = process.extractOne(font, fonts, score_cutoff=80)
+        if(font_found):
+            return font_found[0]
+        else:
+            warnings.warn("'{}' font not found. Use get_available_fonts() or print_available fonts() to see fonts "
+                  "installed on this system. Reverting back to default '{}' font.".format(font, default_font))
+            return None
 
 
 def _get_props(ax, objs, objs_master, objs_name, objs_attrs, objs_keys=None, get_ticks=None):
@@ -876,17 +941,16 @@ def _get_tick_props(axes, tick_type):
     Returns:
         tick_props (dict): Properties for ticks requested.
     """
+    assert tick_type in ['major', 'minor']
     try:
         if(tick_type == 'major'):
             tick_props = axes._major_tick_kw
         elif(tick_type == 'minor'):
             tick_props = axes._minor_tick_kw
-        else:
-            raise ValueError("Unrecognised tick type. Only 'major' or 'minor are allowed.")
     except AttributeError as e:
-        print("Can not access private variable '_major_tick_kw'. Matplotlib may have been updated and changed this "
-              "variable. Getting major tick properties is no longer possible.".format(re.findall("'_.+'", e.args[0])[-1]))
-        return None
+        raise AttributeError("Can not access private variable '_major_tick_kw'. Matplotlib may have been updated and "
+                             "changed this variable. Getting major tick properties is no longer possible."
+                             .format(re.findall("'_.+'", e.args[0])[-1]))
     else:
         return tick_props
 
@@ -939,6 +1003,27 @@ def _set_rcparams_defaults(defaults_dict):
     rcParams['axes.unicode_minus'] = defaults_dict.use_unicode_minus  # use smaller minus sign in plots
     rcParams['axes.formatter.use_mathtext'] = defaults_dict.use_mathtext  # use mathtext for scientific notation
     rcParams['figure.dpi'] = defaults_dict.dpi
+
+
+def _set_ticklabel_exponents(ax, base, add_log=True):
+    """Set tick labels to log_base of values, which is the exponent of the mantissa (e.g. 10^2 -> 2 in log base 10)
+    Args:
+        ax (matplotlib.axes): Axis object.
+        base: Logarithmic base.
+    Returns:
+        None
+    """
+    try:
+        # Take logarithm of tick labels
+        ax.set_major_formatter(FuncFormatter(lambda x, p: "{:.2f}".format(math.log(x, base))))
+    except ValueError:
+        raise ValueError("Ticks must not be <= 0 in order to take logarithm.")
+    else:
+        if(add_log):
+            # Add 'log_base' to axis label if doesn't already start with 'log'
+            if not(re.sub(r'(\$)(\\?\w+{)?', '', ax.get_label_text()).startswith('log')):
+                base_part = '' if base == 10 else '{}'.format(base)
+                ax.set_label_text('$\mathrm{' + 'log_{%s}' % base_part + '}$ ' + ax.get_label_text())
 
 
 def _set_props(objs, objs_name, set_ticks=None, redraw=True, **kwargs):
@@ -994,6 +1079,7 @@ def _write_defaults(defaults, file='defaults.json'):
     with open(file, 'w') as fp:
         json.dump(defaults, fp, indent=4, sort_keys=True)
 
+@functools.lru_cache(2)
 def _load_defaults(file='defaults.json'):
     """Load default pyblish plot parameters.
     Args:
@@ -1025,21 +1111,18 @@ def _append_log_text(wa):
         wa.set_label_text(label_text)
 
 
-def _check_mathtext(ax, fontname):
-    ''''''
-    # Rework this to check label text for mathtext
-
-    # # Check for math text anywhere in the axis object children as custom fonts won't work in this case
-    # for t in [t.get_text() for t in ax.texts] + [ax.get_xlabel(), ax.get_ylabel()]:
-    #     for font in utils.get_iterable(fontname):
-    #         if('$' in t and font is not None):
-    #             if(set_font(font, mathtext=True)):
-    #                 warnings.warn("Text contains '$' so mathtext font has been custom updated to specified font. "
-    #                           "This will change the appearance of all mathtext.\n"
-    #                           "If you do not want this change run reset_mathtext_font() to revert back to default, "
-    #                           "do not use a custom font, or remove all of the mathtext.")
-    for font in utils.get_iterable(fontname):
-        print(font)
+def _check_for_mathtext(texts, font, name):
+    for text in texts:
+        t = text.get_text()
+        # Text contains $...$
+        if(re.match('(\$[^$]+\$)', t)):
+            # Set mathtext font if it is not already set as the font specified and issue warning
+            if not(get_font(mathtext=True) == font):
+                set_font(font, mathtext=True)
+                warnings.warn("'{}' {} contains mathtext so mathtext font has been changed to specified font '{}'. "
+                              "This affects all mathtext in the plot, however, so use "
+                              "set_font(get_default('font_mathtext'), mathtext=True) to revert this change and "
+                              "remove mathtext from the text before reattempting.".format(t, name, font))
 
 
 def _coords_to_bbox(ax, coords):
@@ -1071,3 +1154,13 @@ def _bbox_to_coords(ax, bbox):
     """
     coords = ax.transAxes.inverted().transform(bbox.get_points())
     return (coords[0][0], coords[0][1],  coords[1][0]-coords[0][0], coords[1][1]-coords[0][1])
+
+
+def _print_availables(func):
+    """Print entries in list.
+    Args:
+        func: Function that returns list of entries.
+    Returns:
+        None
+    """
+    print('\n'.join(func()))

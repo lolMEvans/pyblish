@@ -29,20 +29,19 @@ x = plt.legend(loc = 'upper center', ncol = 5, columnspacing = 0.6, handlelength
 # Add another legend!
 
 ax.set_xscale('log')
-ax.set_yscale('log')
+ax.set_yticks([0.1, 0.5, 1.0, 1.5, 2.0])
+# ax.set_yscale('log')
 
 ax.plot((nmax, nmax), (ax.get_ylim()[0], ax.get_ylim()[1]), ls = '--', c = 'gray')
 ax.text(0.8, 0.1, '$\mathrm{n = n_0}$', transform = ax.transAxes)
 ax.text(0.8, 0.2, 'LOL', transform = ax.transAxes)
 
-ax.set_xlabel('LOL') # ('$\mathit{log\ n\ [cm^{-3}]}$')
+ax.set_xlabel('$\mathit{\mathbf{L_O^L}}\ \mathrm{L_O^L}$') # ('$\mathit{log\ n\ [cm^{-3}]}$')
 ax.set_ylabel('LOL') # '$\mathrm{(n/n_0)^w}$')
 
 
-pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=False)
-leg_props = pyblish.get_legend_props(ax, '1')
-print(leg_props)
-pyblish.set_legend_props(ax, '0', leg_props)
+pyblishify(fig, 1, 'square', which_lines=-1, which_markers='all', change_log_scales=True)
+# pyblish.set_font(pyblish.get_default('font_mathtext'), True)
 
 plt.tight_layout()
 # plt.savefig('/localhome/py09mge/test.png', bbox_extra_artists=(l,), bbox_inches='tight')

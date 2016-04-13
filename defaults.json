@@ -12,8 +12,9 @@
         "blue",
         "purple"
     ],
-    "default_mathtext": "stixsans",
     "dpi": 300,
+	"font": "Berthold Baskerville Book",
+	"font_mathtext": "stixsans",
 	"label_order": [
 		"x",
 		"y"],
