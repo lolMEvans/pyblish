@@ -1,15 +1,35 @@
 import collections
 import re
 import math
+import ast
+
+def conditional_decorator(condition, decorator, decorator_args, module):
+    """Wrap a function in a decorator if a condition is True-
+    avoiding trying to import the function until condition is met for e.g. a function only exists for python version 3.
+    Args:
+        condition (bool): Whether to wrap the function in a decorator.
+        decorator (str): String name of decorator to use.
+        decorator_arg: Argument(s) to be passed to decorator.
+        module: Module that decorator function resides in so that this function
+            can call the decorator function without importing.
+    Return:
+        Either the original function or a decorated original function depending on condition.
+    """
+    if(condition):
+        decorator = getattr(module, decorator) if module else eval(decorator)
+        return decorator(decorator_args)
+    else:
+        return lambda x: x
 
 
 def get_iterable(arg):
-    '''
-    Convert any object into an iterable- objects that are already iterables are returned as is
-    whereas non-iterable objects are converted to a list
-    :param arg: Input argument to convert to iterable
-    :return: Object as an iterable
-    '''
+    """Convert any object into an iterable- objects that are already iterables are returned as is
+    whereas non-iterable objects are converted to a list.
+    Args:
+        arg: Input argument to convert to iterable.
+    Returns:
+        Object as an iterable.
+    """
     if isinstance(arg, collections.Iterable) and not isinstance(arg, str):
         return arg
     else:
@@ -17,29 +37,29 @@ def get_iterable(arg):
 
 
 def map_array(array, map_len):
-    '''
-    Map one array onto another with truncation or sequence repeating if necessary
-    :param array: [list] Array to map
-    :param map_len: [int] Length to map array to
-    :return: None
-    '''
+    """Map one array onto another with truncation or sequence repeating if necessary
+    Args:
+        array (list): Array to map.
+        map_len (int): Length to map array to.
+    Returns:
+        None
+    """
     try:
         return array * (map_len // len(array)) + array[:map_len % len(array)]
     except ValueError:
-        print(array, len(array), map_len)
-        print(map_len % len(array))
-        print(map_len // len(array))
         return None
 
 
-
 def remove_empty_keys(dict):
-    # Remove keys with any value entries that are None
+    """Remove keys with any value entries that are None
+    Args:
+        (dict): Dictionary to remove non-value keys from.
+    """
     return {k: v for k,v in dict.items() if all(vi is not None for vi in get_iterable(v))}
 
 
 def parse_str_ranges(str_in):
-    '''Generate a flattened range of numbers given an input of colon-dash-and-comma-separated numbers.
+    """Generate a flattened range of numbers given an input of colon-dash-and-comma-separated numbers.
     Args:
         str_in (str): Range of numbers requested.
             colon separated = range between
@@ -48,7 +68,7 @@ def parse_str_ranges(str_in):
                 e.g. 5, 6, 7 = 5, 6, 7
     Returns:
         (list): Parsed number ranges.
-    '''
+    """
     def range_unpacker(match):
         return "{}".format(','.join([str(_) for _ in range(int(match.group(1)), int(match.group(2))+1)]))
     # Convert colon-separated values into integer ranges and then convert to comma-separated string list

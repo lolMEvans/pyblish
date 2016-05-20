@@ -13,7 +13,7 @@
         "purple"
     ],
     "dpi": 300,
-	"font": "Berthold Baskerville Book",
+	"font": "Gothic",
 	"font_mathtext": "stixsans",
 	"label_order": [
 		"x",
@@ -46,6 +46,7 @@
         "linestyle": [],
         "linewidth": []
     },
+	"log_base": 5.0,
     "majortick_size": 6.0,
     "marker_props": {
         "edgecolor": [],
