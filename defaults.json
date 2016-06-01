@@ -1,30 +1,73 @@
 {
-    "axis_dict": {
-        "both": "[ax.xaxis, ax.yaxis]",
-        "x": "ax.xaxis",
-        "y": "ax.yaxis"
-    },
-    "col_cycle": [
-        "red",
-        "orange",
-        "yellow",
-        "green",
-        "blue",
-        "purple"
-    ],
-    "dpi": 300,
-	"font": "Gothic",
-	"font_mathtext": "stixsans",
-	"label_order": [
-		"x",
-		"y"],
-	"label_props": {
-		"fontsize": [],
-		"fontname": [],
-		"color": []
+	"master_defaults": {
+		"linewidth": 1.0,
+		"linestyle": "-",
+		"linecolor": ["#FF3232", "#9FAA00", "#2D27D1", "#AA20A6", "#000000"],
+		"facecolor": ["#FF3232", "#9FAA00", "#2D27D1", "#AA20A6", "#000000"],
+		"fontsize": 20.0,
+		"fontname": "Gothic",
+		"fontcolor": "red"
 	},
+	
+	
+    "dpi": 300,
+	"fontname": "master",
+	"fontname_mathtext": "stixsans",
+	"use_mathtext": true,
+    "use_unicode_minus": false,	
+	
+	
+	"spine_props": {
+		"linewidth": "master",
+        "linestyle": "master",
+		"linecolor": ["black", "red"],
+        "visible": [true]
+    },
+	"major_tick_props": {
+		"size": [6.0],
+		"width": [1.0],
+		"direction": ["out"],
+		"pad": [7.5],
+		"labelsize": [14.0],
+		"labelcolor": ["blue"]
+	},
+	"minor_tick_props": {
+		"size": [4.0],
+		"width": [1.0],
+		"direction": ["out"],
+		"pad": [7.5],
+		"labelsize": [10.0],
+		"labelcolor": ["orange"]
+	},
+	
+	
+	"label_props": {
+		"fontsize": "master",
+		"fontname": "master",
+		"fontcolor": "master"
+	},
+	"line_props": {
+		"linewidth": "master",
+        "linestyle": "master",
+		"linecolor": "master"
+    },
+    "marker_props": {
+		"linewidth": "master",
+		"linestyle": "master",
+        "linecolor": "master",
+        "facecolor": "master",
+        "symbols": ["o"],
+        "sizes": [100]
+    },
+	"text_props": {
+		"fontname": "master",
+        "fontsize": "master",
+		"fontcolor": "master"
+    },
+	
+	
 	"legend_props": {
-		"loc": 1,
+		"loc": 10,
 		"ncol": 5,
 		"frameon": true,
 		"columnspacing": 0.6,
@@ -34,67 +77,34 @@
 		"handletextpad": 0.8,
 		"numpoints": 3,
 		"scatterpoints": 3,
-		"bbox_to_anchor": [
-			0.5, 
-			0.75, 
-			0, 
-			0]
+		"bbox_to_anchor": [0.5, 0.75, 0, 0]
 	},
-    "line_style": "-",
-    "line_props": {
-        "color": [],
-        "linestyle": [],
-        "linewidth": []
+	"legend_line_props": {
+		"linewidth": "master",
+        "linestyle": "master",
+		"linecolor": "master"
     },
-	"log_base": 5.0,
-    "majortick_size": 6.0,
-    "marker_props": {
-        "edgecolor": [],
-        "facecolor": [],
-        "linestyle": [],
-        "linewidth": [],
-        "symbols": [],
-        "sizes": []
+	"legend_marker_props": {
+		"linewidth": "master",
+		"linestyle": "master",
+        "linecolor": "master",
+        "facecolor": "master",
+        "symbols": ["o"],
+        "sizes": [100]
     },
-    "minortick_size": 4.0,
-    "spine_axis_dict": {
-        "bottom": "ax.xaxis",
-        "left": "ax.yaxis",
-        "right": "ax.yaxis",
-        "top": "ax.xaxis"
+	"legend_text_props": {
+        "fontsize": 15.0,
+		"fontcolor": "master"
     },
-    "spine_col": "black",
-	"spine_order": [
-		"left", 
-		"bottom", 
-		"right", 
-		"top"],
-    "spine_props": {
-        "edgecolor": [],
-        "facecolor": [],
-        "linestyle": [],
-        "linewidth": [],
-        "visible": []
-    },
-    "text_props": {
-        "color": [],
-        "fontname": [],
-        "fontsize": []
-    },
-    "tick_dir": "out",
-    "ticklabel_pad": 7.5,
-	"tick_order": [
-		"x",
-		"y"],
-	"tick_props": {
-		"size": [],
-		"width": [],
-		"color": [],
-		"direction": [],
-		"pad": [],
-		"labelsize": [],
-		"labelcolor": []
-	},
-    "use_mathtext": true,
-    "use_unicode_minus": false
+	
+	
+	"log_scale_props": {
+		"scale": ["log", "log"],
+		"base": [10, 5],
+		"subs": [[1,2,3,4,5,6,7,8,9]],
+		"exponents": true,
+		"exponents_precision": 2,
+		"hide_base": [false, false],
+		"base_precision": [0, 2]
+	}
 }

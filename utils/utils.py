@@ -1,7 +1,6 @@
 import collections
 import re
-import math
-import ast
+
 
 def conditional_decorator(condition, decorator, decorator_args, module):
     """Wrap a function in a decorator if a condition is True-
@@ -9,7 +8,7 @@ def conditional_decorator(condition, decorator, decorator_args, module):
     Args:
         condition (bool): Whether to wrap the function in a decorator.
         decorator (str): String name of decorator to use.
-        decorator_arg: Argument(s) to be passed to decorator.
+        decorator_args: Argument(s) to be passed to decorator.
         module: Module that decorator function resides in so that this function
             can call the decorator function without importing.
     Return:
@@ -36,26 +35,26 @@ def get_iterable(arg):
         return [arg]
 
 
-def map_array(array, map_len):
-    """Map one array onto another with truncation or sequence repeating if necessary
+def map_list(list_in, map_len):
+    """Map one list onto another with truncation or sequence repeating if necessary
     Args:
-        array (list): Array to map.
-        map_len (int): Length to map array to.
+        list_in (list): Array to map.
+        map_len (int): Length to map list to.
     Returns:
-        None
+        (list): Array mapped to correct length.
     """
     try:
-        return array * (map_len // len(array)) + array[:map_len % len(array)]
+        return list_in * (map_len // len(list_in)) + list_in[:map_len % len(list_in)]
     except ValueError:
-        return None
+        raise ValueError("Could not map list {} to length {}".format(list_in, map_len))
 
 
-def remove_empty_keys(dict):
+def remove_empty_keys(dict_in):
     """Remove keys with any value entries that are None
     Args:
-        (dict): Dictionary to remove non-value keys from.
+        dict_in (dict): Dictionary to remove non-value keys from.
     """
-    return {k: v for k,v in dict.items() if all(vi is not None for vi in get_iterable(v))}
+    return {k: v for k, v in dict_in.items() if all(vi is not None for vi in get_iterable(v))}
 
 
 def parse_str_ranges(str_in):
@@ -77,8 +76,4 @@ def parse_str_ranges(str_in):
     if(len(range_unpacked) > 0):
         return [int(_) for _ in range_unpacked.split(',')]  # Convert comma-separated string list into integer list
     else:
-        raise ValueError("input string '{}' can not be parsed into integer ranges.".format(str_in))
-
-def exp_to_log(x, p):
-    return "{:.0f}".format(math.log10(x))
-
+        raise ValueError("Input string '{}' can not be parsed into integer ranges.".format(str_in))
