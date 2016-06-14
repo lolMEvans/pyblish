@@ -9,29 +9,17 @@ import sys
 import warnings
 import functools
 import json
-import re
 import math
 
 # Import externals
 from fuzzywuzzy import process
-from utils import utils, availables
+from utils.converters import *
+from utils.parser import *
+from utils.decorator import *
+from utils.availables import *
+from utils.colormap import *
 
-# Fix majority of warnings
-# Remove DotDict
-# Add kwargs to pyblish to allow user to override default properties for any parameter
-# (e.g. spine_props, line_props etc.)
-# Refactor defaults.json by adding a master_defaults entry that is used if any defaults are set to 'master'
-# Moved print getter functions to availables.py
-# Refactored set_axes_scale to set_log_scale with exponent formatting built-in
-# Refactored _set_props to set all properties simultaneously for everything but legend so that
-# needless loops are avoided
-
-# ToDo: Main
-
-# Integrate ColorMapper module so that user can specify custom colour schemes for colour cycles
-# and use pyblish.get_color_map function anytime
-
-# Move get & set functions next to each other?
+#ToDo: Bug-checking. Make sure pyblishify works for a range of figures!
 
 
 class InputError(Exception):
@@ -41,17 +29,19 @@ class InputError(Exception):
 def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='all',
                which_spines=('left', 'bottom'),
                which_lines='all', which_markers='all', which_texts='all',
-               which_frames='all',
-               which_log_scales=True,
-               which_log_exponents=True,
+               which_legends='all',
+               which_log_scales='all',
+               save_file=None,
                **kwargs):
 
     # Get default parameters from 'defaults.json'
     defaults_dict = get_defaults('defaults.json')
     # Set default parameters that = 'master' to appropriate value from master_defaults dict
-    defaults_dict = _set_master_defaults(defaults_dict)
+    _set_master_defaults(defaults_dict)
+    # Fix default parameters and names to be consistent with matplotlib conventions
+    _fix_defaults(defaults_dict)
     # Set defaults that are dependent on number of columns requested
-    defaults_dict = _set_params_defaults(defaults_dict, num_cols)
+    # defaults_dict = _set_params_defaults(defaults_dict, num_cols)
     # Override a selection of default rcParams
     _set_rcparams_defaults(defaults_dict)
     # Set font
@@ -61,7 +51,6 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
 
     # Allow user to pass in any dictionary of properties as kwargs and take passed in values
     # or default if no value passed
-    # parameters_dict = defaults_dict.copy()
     parameters_dict = _get_plot_properties(['spine_props', 'label_props', 'major_tick_props', 'minor_tick_props',
                                             'line_props', 'marker_props', 'text_props',
                                             'legend_line_props', 'legend_marker_props', 'legend_text_props',
@@ -78,39 +67,85 @@ def pyblishify(fig, num_cols, aspect='square', which_labels='all', which_ticks='
     for ax in fig.axes:
         # Set axes spine properties using default spine properties
         if(which_spines):
-            set_spine_props(ax, ['left', 'bottom'], spine_props=parameters_dict['spine_props'],
+            set_spine_props(ax, which_spines, spine_props=parameters_dict['spine_props'],
                             hide_other_spines=True, duplicate_ticks=True)
-        # Set axes label properties using default label properties
-        if(which_labels):
-            set_label_props(ax, 'all', label_props=parameters_dict['label_props'])
         # Set axes ticks and ticklabel properties using default tick and ticklabel properties
         if(which_ticks):
-            set_tick_props(ax, 'all', tick_props=parameters_dict['major_tick_props'], tick_type='major')
-            set_tick_props(ax, 'all', tick_props=parameters_dict['minor_tick_props'], tick_type='minor')
+            set_tick_props(ax, which_ticks, tick_props=parameters_dict['major_tick_props'], tick_type='major')
+            set_tick_props(ax, which_ticks, tick_props=parameters_dict['minor_tick_props'], tick_type='minor')
+        # Set axes label properties using default label properties
+        if(which_labels):
+            set_label_props(ax, which_labels, label_props=parameters_dict['label_props'])
         # Set line and legend line properties using default line properties
         if(which_lines):
-            set_line_props(ax, 'all', line_props=parameters_dict['line_props'])
-            set_line_props(ax, 'all', line_props=parameters_dict['legend_line_props'], legend_lines=True)
+            set_line_props(ax, which_lines, line_props=parameters_dict['line_props'])
+            if(ax.legend_):
+                set_line_props(ax, 'all', line_props=parameters_dict['legend_line_props'], legend_lines=True)
         # Set marker and legend marker properties using default marker properties
         if(which_markers):
-            set_marker_props(ax, 'all', marker_props=parameters_dict['marker_props'])
-            set_marker_props(ax, 'all', marker_props=parameters_dict['legend_marker_props'], legend_markers=True)
+            set_marker_props(ax, which_markers, marker_props=parameters_dict['marker_props'])
+            if(ax.legend_):
+                set_marker_props(ax, 'all', marker_props=parameters_dict['legend_marker_props'], legend_markers=True)
         # Set text properties using default text properties
         if(which_texts):
-            set_text_props(ax, 'all', text_props=parameters_dict['text_props'])
+            set_text_props(ax, which_texts, text_props=parameters_dict['text_props'])
         # Set legend text properties using default legend text properties
         # (Legend text is not related to plot text as with lines and markers)
-        set_text_props(ax, 'all', text_props=parameters_dict['legend_text_props'], legend_texts=True)
+        if(ax.legend_):
+            set_text_props(ax, 'all', text_props=parameters_dict['legend_text_props'], legend_texts=True)
 
         # Set legend properties using default legend properties
-        if(which_frames):
-            set_legend_props(ax, 'all', legend_props=parameters_dict['legend_props'])
+        if(which_legends):
+            if(ax.legend_):
+                set_legend_props(ax, which_legends, legend_props=parameters_dict['legend_props'])
         # Set axes log scale properties
         if(which_log_scales):
-            set_log_scale(ax, 'all', log_scale_props=parameters_dict['log_scale_props'])
+            set_log_scale(ax, which_log_scales, log_scale_props=parameters_dict['log_scale_props'])
+
+    # Get list of legends to send to savefig as bbox_extra_artists to ensure saved figure has enough space around plot
+    # for legends
+    legends = get_iterable(ax.legend_) + [l for l in ax.artists if isinstance(l, matplotlib.legend.Legend)]
+    if(all([l is None for l in legends])):
+        legends = None
+    if(save_file):
+        save_figure(save_file, kwargs.pop('format', 'png'), kwargs.pop('bbox_inches', 'tight'), legends)
 
 
-# GETTER FUNCTIONS ----------------------------------------------------------------------------------------------------
+def make_figure(rows, cols, sharex=False, sharey=False, subplot_keywords=None, gridspec_keywords=None,
+                **figure_keywords):
+    """Make figure and axes objects used for plotting.
+    Args:
+        rows (int): Number of canvases vertically.
+        cols (int): Number of canvases horizontally.
+        sharex (bool): Whether to share x axis between multiple canvases.
+        sharey (bool): Whether to share y axis between multiple canvases.
+        subplot_keywords (dict): Keywords used for add_subplot().
+        gridspec_keywords (dict): Keywords used for gridspec.GridSpec()
+    Returns:
+        fig (matplotlib.figure.Figure): Figure object.
+        axes (matplotlib.axes._subplots.AxesSubplot): Axes object(s).
+    """
+    fig, axes = plt.subplots(rows, cols, sharex, sharey, subplot_keywords, gridspec_keywords, **figure_keywords)
+    if(len(axes.ravel()) == 1):
+        return fig, axes[0][0]
+    else:
+        return fig, axes
+
+
+def save_figure(file_path, format='png', bbox='tight', extra_artists=None, **kwargs):
+    """Save figure to file.
+    Args:
+        file_path (str): Path to save figure to.
+        format (str): Format to save figure in.
+        bbox (str):  Only the bbox specified is saved. 'tight' forces matplotlib to figure out bbox automatically.
+        extra_artists (list): A list of extra artists that are considered when calculating the bbox.
+    Returns:
+        None
+    """
+    plt.savefig(file_path, format=format, bbox_inches=bbox, bbox_extra_artists=extra_artists, **kwargs)  # , bbox_extra_artists=(l,)
+
+
+# PLOT OBJECT GETTER & SETTER FUNCTIONS ------------------------------------------------------------------------
 
 
 def get_spine_props(ax, which_spines):
@@ -127,256 +162,9 @@ def get_spine_props(ax, which_spines):
         (dict): Spine properties for each spine specified (e.g. 'left', 'bottom', 'right', 'top') as nested dictionary.
     """
     defaults = get_defaults()
-    return _get_props(which_spines, ax.spines, 'spine', list(defaults['spine_props'].keys()),
+    defaults['spine_props'] = _fix_props(defaults['spine_props'], 'spine')
+    return _get_props(which_spines, ax.spines, 'spine', defaults['spine_props'],
                       ['left', 'bottom', 'right', 'top'])
-
-
-def get_tick_props(ax, which_axes, tick_type='major'):
-    """Get properties of ticks. The properties are returned in the order specified. If 'all' is given instead of an
-    order then the tick properties are returned in the default order: 'x', 'y'. Uses custom logic specifically for
-    ticks as they are not gettable in the same way as other matplotlib objects.
-    Args:
-        ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es) or object(s).
-            Given as a specified type OR list of a specified type.
-            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
-                e.g. '0' = 'x', '0,1' = 'x, y'
-        tick_type (str): 'major' or 'minor'.
-    Returns:
-        (dict): Tick properties for each set of ticks specified (e.g. 'x', 'y') as a nested dictionary.
-    """
-    defaults = get_defaults()
-    return _get_props(which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', list(defaults['tick_props'].keys()),
-                      ['x', 'y'], tick_type)
-
-
-def get_label_props(ax, which_axes):
-    """Get properties of labels. The properties are returned in the order specified. If 'all' is given instead of an
-    order then the label properties are returned in the default order: 'x', 'y'.
-    Args:
-        ax (matplotlib.axes): Axis object.
-        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es) or object(s).
-            Given as a specified type OR list of a specified type.
-            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
-            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
-                e.g. '0' = 'x', '0,1' = 'x, y'
-    Returns:
-        (dict): Label properties for each label specified (e.g. 'x', 'y') as a nested dictionary.
-    """
-    defaults = get_defaults()
-    return _get_props(which_axes, {'x': ax.xaxis.label, 'y': ax.yaxis.label}, 'label',
-                      list(defaults['label_props'].keys()), ['x', 'y'])
-
-
-def get_line_props(ax, which_lines, legend_lines=False):
-    """Get properties of lines. The properties are returned in the order specified. If 'all' is given instead of an
-    order then the line properties are returned in the default order: '0', '1', '2' etc.
-    Args:
-        ax (matplotlib.axes): Axis object.
-        which_lines (int|str|matplotlib.lines.Line2D): Line index(es) or object(s).
-            Given as a specified type OR list of a specified type.
-            'all' can be used to select all lines.
-            Comma-colon separated strings can be used to select lines in plotted order.
-                e.g. '0' = '1st line', '0,1' = '1st, 2nd line', '1:3' = '2nd, 3rd, 4th line'
-        legend_lines (bool): Sets properties for legend lines if True, otherwise sets properties for lines plotted on
-            specified axis object.
-    Returns:
-        (dict): Line properties for each line specified (e.g. '0', '1', 'all') as a nested dictionary.
-    """
-    if(legend_lines):
-        # Get appropriate lines from legend handles
-        lines_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.lines.Line2D)]
-        lines_name = 'legend line'
-    else:
-        lines_master = ax.lines
-        lines_name = 'line'
-    defaults = get_defaults()
-    return _get_props(which_lines, lines_master, lines_name, list(defaults['line_props'].keys()))
-
-
-def get_marker_props(ax, which_markers, legend_markers=False):
-    """Get properties of marker collections. The properties are returned in the order specified. If 'all' is given
-    instead of an order then the marker collection properties are returned in the default order: '0', '1', '2' etc.
-    Args:
-        ax (matplotlib.axes): Axis object.
-        which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es) or object(s).
-            Given as a specified type OR list of a specified type.
-            'all' can be used to select all marker collections.
-            Comma-colon separated strings can be used to select marker collections in plotted order.
-                e.g. '0' = '1st marker col', '0,1' = '1st, 2nd marker col', '1:3' = '2nd, 3rd, 4th marker col'
-        legend_markers (bool): Sets properties for legend markers if True, otherwise sets properties for markers plotted
-            on specified axis object.
-    Returns:
-        (dict): Marker properties for each marker collection specified (e.g. '0', '1', 'all') as a nested dictionary.
-    """
-    if(legend_markers):
-        # Get appropriate markers from legend handles
-        markers_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.collections.PathCollection)]
-        markers_name = 'legend marker collection'
-    else:
-        markers_master = ax.collections
-        markers_name = 'marker collection'
-    defaults = get_defaults()
-    marker_props = _get_props(which_markers, markers_master, markers_name, list(defaults['marker_props'].keys()))
-    # Convert sizes output into nested lists
-    marker_props['sizes'] = [list(x) for x in marker_props['sizes']]
-    return marker_props
-
-
-def get_text_props(ax, which_texts, legend_texts=False):
-    """Get properties of texts. The properties are returned in the order specified. If 'all' is given instead of an
-    order then the text properties are returned in the default order: '0', '1', '2' etc.
-    Args:
-        ax (matplotlib.axes): Axis object.
-        which_texts (int|str|matplotlib.texts.text2D): text index(es) or object(s).
-            Given as a specified type OR list of a specified type.
-            'all' can be used to select all texts.
-            Comma-colon separated strings can be used to select texts in plotted order.
-                e.g. '0' = '1st text', '0,1' = '1st, 2nd text', '1:3' = '2nd, 3rd, 4th text'
-        legend_texts (bool): Sets properties for legend texts if True, otherwise sets properties for texts plotted on
-            specified axis object.
-    Returns:
-        (dict): text properties for each text specified (e.g. '0', '1', 'all') as a nested dictionary.
-    """
-    if(legend_texts):
-        # Get appropriate texts from legend handles
-        texts_master = ax.legend_.texts
-        texts_name = 'legend text'
-    else:
-        texts_master = ax.texts
-        texts_name = 'text'
-    defaults = get_defaults()
-    return _get_props(which_texts, texts_master, texts_name, list(defaults['text_props'].keys()))
-
-
-def get_legend_props(ax, which_legends):
-    """Get properties of legend. The legend properties are returned in the order specified. If 'all' is given instead
-    of an order then the properties are returned in the default order: '0', '1', '2' etc.
-    All additional legends added via plt.gca().add_artist are automatically processed by default, or can be specified
-    using indexes >=1 (0 = native axis legend).
-    Args:
-        ax (matplotlib.axes): Axis object.
-        which_legends (int|str|matplotlib.legend.Legend): Legend index(es) or object(s).
-            Given as a specified type OR list of a specified type.
-            'all' can be used to select all objects.
-            Comma-colon separated strings can be used to select objects in plotted order.
-                e.g. '0' = '1st legend', '0,1' = '1st, 2nd legend', '1:3' = '2nd, 3rd, 4th legend'
-    Returns:
-        (dict): text properties for each text specified (e.g. '0', '1', 'all') as a nested dictionary.
-    """
-    # Get master list of all legends in plot including additional legends added via add_artist
-    legends_master = [ax.legend_]
-    legends_master.extend([l for l in ax.artists if isinstance(l, matplotlib.legend.Legend)])
-
-    which_legends = _get_plot_objects(which_legends, True, legends_master, 'legend')
-
-    defaults = get_defaults()
-    legend_props = _get_props(which_legends, legends_master, 'legend', list(defaults['legend_props'].keys()))
-    # Convert bbox output into tuple (x0, y0, width, height) coords
-    legend_props['bbox_to_anchor'] = [_bbox_to_coords(ax, bbox) for bbox in legend_props['bbox_to_anchor']]
-    return legend_props
-
-
-# MISCELLANEOUS GETTER FUNCTIONS ------------------------------------------------
-
-
-@utils.conditional_decorator(sys.version_info.major == 3, 'lru_cache', decorator_args=2, module=functools)
-def get_defaults(file="defaults.json"):
-    """Load default pyblish plot parameters.
-    Args:
-        file (str): File where defaults are stored in json format.
-    Returns:
-        data (dict): Default parameters.
-    """
-    with open(file, 'r') as fp:
-        data = json.load(fp)
-    return data
-
-
-@utils.conditional_decorator(sys.version_info.major == 3, 'lru_cache', decorator_args=2, module=functools)
-def get_available_fonts():
-    """Use matplotlib.font_manager to get fonts on system.
-    Returns:
-         Alphabetically sorted list of .ttf font names.
-    """
-    fmanager = fm.FontManager()
-    font_names = set([f.name for f in fmanager.ttflist])
-    return sorted(font_names)
-
-
-def get_font(mathtext=False):
-    """Get plot font (normal or mathtext). The method for setting mathtext is experimental and may be removed in future
-    updates to matplotlib.
-    Args:
-        mathtext (bool): Sets mathtext rather than normal plot text if True.
-    Returns:
-        (str): matplotlib.rcParams font parameter.
-    """
-    if(mathtext):
-        if(matplotlib.rcParams['mathtext.fontset'] == 'custom'):
-            return matplotlib.rcParams['mathtext.rm']
-        else:
-            return matplotlib.rcParams['mathtext.fontset']
-    else:
-        # font.family is converted to list in built-in matplotlib function so here we flatten it back to string
-        return matplotlib.rcParams['font.family'][0]
-
-
-def get_mathtext():
-    """Get plot mathtext via get_font(mathtext=True)
-    Returns:
-        (str): matplotlib.rcParams font parameter.
-    """
-    return get_font(True)
-
-
-# PRINT FUNCTIONS --------------------------------------------------------------------------------------------------
-
-
-def print_linestyles():
-    print(availables.get_available_linestyles())
-
-
-def print_axes_scales(keywords=False):
-    print(availables.get_available_scales(keywords))
-
-
-def print_legend_locs():
-    print(availables.get_available_legend_locs())
-
-
-def print_fonts():
-    print('\n'.join(get_available_fonts()))
-
-
-# SETTER FUNCTIONS ----------------------------------------------------------------------------------------------------
-
-
-def set_figure_size(fig, fig_width, fig_height, res_inc=1.0):
-    """Set figure size by calling private function
-    Args:
-        fig (matplotlib.figure.Figure)
-        fig_width (float)
-        fig_height (float)
-        res_inc (float): Factor to increase figure resolution by.
-    Returns:
-        None
-    """
-    _set_figure_size(fig, fig_width * res_inc, fig_height * res_inc)
-
-
-def set_font(font, mathtext=False):
-    """Get font on system and set plot font (normal or mathtext).
-    Args:
-        font: Font name.
-        mathtext (bool): Sets mathtext rather than normal plot text if True.
-    Returns:
-        None
-    """
-    font = _get_system_font(font)
-    if(font):
-        _set_font(font, mathtext)
 
 
 def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, duplicate_ticks=False):
@@ -421,15 +209,31 @@ def set_spine_props(ax, which_spines, spine_props, hide_other_spines=True, dupli
                 # Set ticks only on one side, according to which 'left'|'right', 'bottom'|'top' spine is ordered last
                 # in which_spines
                 sp.axis.set_ticks_position(ax_dir)
-        # Change color into recognised edgecolor keyword
-        if('edgecolor' not in spine_props):
-            spine_props['edgecolor'] = spine_props.pop('linecolor', None)
-        # Handle RGB(A) color input
-        if('color' in spine_props):
-            if(isinstance(spine_props['color'], tuple) and 3 < len(spine_props['color']) <= 4):
-                spine_props['color'] = [spine_props['color']]
+        # Fix property input to be consistent with matplotlib conventions
+        _fix_props(spine_props, 'spine')
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_spines, 'spine', **spine_props)
+
+
+def get_tick_props(ax, which_axes, tick_type='major'):
+    """Get properties of ticks. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the tick properties are returned in the default order: 'x', 'y'. Uses custom logic specifically for
+    ticks as they are not gettable in the same way as other matplotlib objects.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es) or object(s).
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
+                e.g. '0' = 'x', '0,1' = 'x, y'
+        tick_type (str): 'major' or 'minor'.
+    Returns:
+        (dict): Tick properties for each set of ticks specified (e.g. 'x', 'y') as a nested dictionary.
+    """
+    defaults = get_defaults()
+    _fix_props(defaults['tick_props'], 'ticks')
+    return _get_props(which_axes, {'x': ax.xaxis, 'y': ax.yaxis}, 'tick', defaults['tick_props'],
+                      ['x', 'y'], tick_type)
 
 
 def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
@@ -462,8 +266,29 @@ def set_tick_props(ax, which_axes, tick_props, tick_type='major'):
     which_axes = _get_plot_objects(which_axes, tick_props, {'x': ax.xaxis, 'y': ax.yaxis}, tick_type + ' tick',
                                    ['x', 'y'])
     if(which_axes):
+        # Fix property input to be consistent with matplotlib conventions
+        _fix_props(tick_props, 'ticks')
         # Set properties using ax.(x|y)axis.set_tick_params
         _set_props(which_axes, 'ticks', set_ticks=tick_type, **tick_props)
+
+
+def get_label_props(ax, which_axes):
+    """Get properties of labels. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the label properties are returned in the default order: 'x', 'y'.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_axes (int|str|matplotlib.axis.(XAxis|YAxis)): Axes index(es) or object(s).
+            Given as a specified type OR list of a specified type.
+            Names accepted are 'x' or 'y', or 'all' can be used to select both axes.
+            Comma-colon separated strings can be used to select axes in 'x', 'y' order.
+                e.g. '0' = 'x', '0,1' = 'x, y'
+    Returns:
+        (dict): Label properties for each label specified (e.g. 'x', 'y') as a nested dictionary.
+    """
+    defaults = get_defaults()
+    _fix_props(defaults['label_props'], 'label')
+    return _get_props(which_axes, {'x': ax.xaxis.label, 'y': ax.yaxis.label}, 'label',
+                      defaults['label_props'], ['x', 'y'])
 
 
 def set_label_props(ax, which_labels, label_props):
@@ -493,11 +318,33 @@ def set_label_props(ax, which_labels, label_props):
             label_props['fontname'] = _get_system_font(label_props['fontname'])
             # Check if label text contains mathtext and if so change the mathtext font to accommodate
             _change_mathtext(which_labels, label_props['fontname'])
-        # Change fontcolor into recognised color keyword
-        if('color' not in label_props):
-            label_props['color'] = label_props.pop('fontcolor', None)
+        # Fix property input to be consistent with matplotlib conventions
+        _fix_props(label_props, 'label')
         # Set properties using matplotlib.pyplot.setp
-        _set_props(which_labels, 'Label', **label_props)
+        _set_props(which_labels, 'label', **label_props)
+
+
+def get_line_props(ax, which_lines, legend_lines=False):
+    """Get properties of lines. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the line properties are returned in the default order: '0', '1', '2' etc.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_lines (int|str|matplotlib.lines.Line2D): Line index(es) or object(s).
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all lines.
+            Comma-colon separated strings can be used to select lines in plotted order.
+                e.g. '0' = '1st line', '0,1' = '1st, 2nd line', '1:3' = '2nd, 3rd, 4th line'
+        legend_lines (bool): Sets properties for legend lines if True, otherwise sets properties for lines plotted on
+            specified axis object.
+    Returns:
+        (dict): Line properties for each line specified (e.g. '0', '1', 'all') as a nested dictionary.
+    """
+    lines_master, lines_name = _get_master_objs(ax, 'line', matplotlib.lines.Line2D, ax.lines,
+                                                legend_lines)
+    defaults = get_defaults()
+    # Fix default properties to be consistent with matplotlib conventions
+    _fix_props(defaults['line_props'], lines_name)
+    return _get_props(which_lines, lines_master, lines_name, defaults['line_props'])
 
 
 def set_line_props(ax, which_lines, line_props, legend_lines=False):
@@ -519,20 +366,38 @@ def set_line_props(ax, which_lines, line_props, legend_lines=False):
     Returns:
         None
     """
-    if(legend_lines):
-        lines_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.lines.Line2D)]
-        lines_name = 'legend line'
-    else:
-        lines_master = ax.lines
-        lines_name = 'line'
+    lines_master, lines_name = _get_master_objs(ax, 'line', matplotlib.lines.Line2D, ax.lines,
+                                                legend_lines)
     # Get appropriate line object(s) from input as list
     which_lines = _get_plot_objects(which_lines, line_props, lines_master, lines_name)
     if(which_lines):
-        # Change linecolor into recognised edgecolor keyword
-        if('color' not in line_props):
-            line_props['color'] = line_props.pop('linecolor', None)
+        # Fix property input to be consistent with matplotlib conventions
+        _fix_props(line_props, lines_name)
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_lines, lines_name, **line_props)
+
+
+def get_marker_props(ax, which_markers, legend_markers=False):
+    """Get properties of marker collections. The properties are returned in the order specified. If 'all' is given
+    instead of an order then the marker collection properties are returned in the default order: '0', '1', '2' etc.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_markers (int|str|matplotlib.collections.PathCollection): Marker collection/set index(es) or object(s).
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all marker collections.
+            Comma-colon separated strings can be used to select marker collections in plotted order.
+                e.g. '0' = '1st marker col', '0,1' = '1st, 2nd marker col', '1:3' = '2nd, 3rd, 4th marker col'
+        legend_markers (bool): Sets properties for legend markers if True, otherwise sets properties for markers plotted
+            on specified axis object.
+    Returns:
+        (dict): Marker properties for each marker collection specified (e.g. '0', '1', 'all') as a nested dictionary.
+    """
+    markers_master, markers_name = _get_master_objs(ax, 'marker collection', matplotlib.collections.PathCollection,
+                                                    ax.collections, legend_markers)
+    defaults = get_defaults()
+    # Fix default properties to be consistent with matplotlib conventions
+    _fix_props(defaults['marker_props'], markers_name)
+    return _get_props(which_markers, markers_master, markers_name, defaults['marker_props'])
 
 
 def set_marker_props(ax, which_markers, marker_props, legend_markers=False):
@@ -559,27 +424,37 @@ def set_marker_props(ax, which_markers, marker_props, legend_markers=False):
     Returns:
         None
     """
-    if(legend_markers):
-        markers_master = [h for h in ax.legend_.legendHandles if isinstance(h, matplotlib.collections.PathCollection)]
-        markers_name = 'legend marker collection'
-    else:
-        markers_master = ax.collections
-        markers_name = 'marker collection'
+    markers_master, markers_name = _get_master_objs(ax, 'marker collection', matplotlib.collections.PathCollection,
+                                                    ax.collections, legend_markers)
     # Get appropriate marker object(s) from input as list
     which_markers = _get_plot_objects(which_markers, marker_props, markers_master, markers_name)
     if(which_markers):
-        # Convert any non-iterable size value to an iterable as this is the input for the built-in matplotlib function
-        if('sizes' in marker_props):
-            marker_props['sizes'] = [_ if isinstance(_, list) else [_] for _ in
-                                     utils.get_iterable(marker_props['sizes'])]
-        if('symbols' in marker_props):
-            marker_props['paths'] = _get_marker_paths(utils.get_iterable(marker_props['symbols']))
-            marker_props.pop('symbols')  # Remove symbols key as it is now paths
-        # Change linecolor into recognised edgecolor keyword
-        if('edgecolor' not in marker_props):
-            marker_props['edgecolor'] = marker_props.pop('linecolor', None)
+        # Fix property input to be consistent with matplotlib conventions
+        _fix_props(marker_props, markers_name)
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_markers, markers_name, **marker_props)
+
+
+def get_text_props(ax, which_texts, legend_texts=False):
+    """Get properties of texts. The properties are returned in the order specified. If 'all' is given instead of an
+    order then the text properties are returned in the default order: '0', '1', '2' etc.
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_texts (int|str|matplotlib.text.Text): text index(es) or object(s).
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all texts.
+            Comma-colon separated strings can be used to select texts in plotted order.
+                e.g. '0' = '1st text', '0,1' = '1st, 2nd text', '1:3' = '2nd, 3rd, 4th text'
+        legend_texts (bool): Sets properties for legend texts if True, otherwise sets properties for texts plotted on
+            specified axis object.
+    Returns:
+        (dict): text properties for each text specified (e.g. '0', '1', 'all') as a nested dictionary.
+    """
+    texts_master, texts_name = _get_master_objs(ax, 'text', matplotlib.text.Text,
+                                                    ax.texts, legend_texts)
+    defaults = get_defaults()
+    _fix_props(defaults['text_props'], texts_name)
+    return _get_props(which_texts, texts_master, texts_name, defaults['text_props'])
 
 
 def set_text_props(ax, which_texts, text_props, legend_texts=False):
@@ -601,12 +476,8 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
     Returns:
         None
     """
-    if(legend_texts):
-        texts_master = ax.legend_.texts
-        texts_name = 'legend text'
-    else:
-        texts_master = ax.texts
-        texts_name = 'text'
+    texts_master, texts_name = _get_master_objs(ax, 'text', matplotlib.text.Text,
+                                                    ax.texts, legend_texts)
     # Get appropriate text object(s) from input as list
     which_texts = _get_plot_objects(which_texts, text_props, texts_master,
                                     texts_name)
@@ -616,19 +487,43 @@ def set_text_props(ax, which_texts, text_props, legend_texts=False):
                 warnings.warn("Legend font can not be changed this way as it is rendered as mathtext. "
                               "Use set_font('font', mathtext=True) to set the mathtext font within the plot instead.")
             else:
-                # Get closest matching font or None if font not found
-                text_props['fontname'] = _get_system_font(text_props['fontname'])
                 # Check if text contains mathtext and if so change the mathtext font to accommodate
                 _change_mathtext(which_texts, text_props['fontname'])
         if('fontsize' in text_props and legend_texts):
             # More than one fontsize is not supported in legend text
-            if(len(set(utils.get_iterable(text_props['fontsize']))) > 1):
+            if(len(set(get_iterable(text_props['fontsize']))) > 1):
                 warnings.warn("Only one fontsize can be used in legend text.")
-        # Change fontcolor into recognised color keyword
-        if('color' not in text_props):
-            text_props['color'] = text_props.pop('fontcolor', None)
+        _fix_props(text_props, texts_name)
         # Set properties using matplotlib.pyplot.setp
         _set_props(which_texts, texts_name, **text_props)
+
+
+def get_legend_props(ax, which_legends):
+    """Get properties of legend. The legend properties are returned in the order specified. If 'all' is given instead
+    of an order then the properties are returned in the default order: '0', '1', '2' etc.
+    All additional legends added via plt.gca().add_artist are automatically processed by default, or can be specified
+    using indexes >=1 (0 = native axis legend).
+    Args:
+        ax (matplotlib.axes): Axis object.
+        which_legends (int|str|matplotlib.legend.Legend): Legend index(es) or object(s).
+            Given as a specified type OR list of a specified type.
+            'all' can be used to select all objects.
+            Comma-colon separated strings can be used to select objects in plotted order.
+                e.g. '0' = '1st legend', '0,1' = '1st, 2nd legend', '1:3' = '2nd, 3rd, 4th legend'
+    Returns:
+        (dict): text properties for each text specified (e.g. '0', '1', 'all') as a nested dictionary.
+    """
+    # Get master list of all legends in plot including additional legends added via add_artist
+    legends_master = [ax.legend_]
+    legends_master.extend([l for l in ax.artists if isinstance(l, matplotlib.legend.Legend)])
+
+    which_legends = _get_plot_objects(which_legends, True, legends_master, 'legend')
+
+    defaults = get_defaults()
+    legend_props = _get_props(which_legends, legends_master, 'legend', defaults['legend_props'])
+    # Convert bbox output into tuple (x0, y0, width, height) coords
+    legend_props['bbox_to_anchor'] = [_bbox_to_coords(ax, bbox) for bbox in legend_props['bbox_to_anchor']]
+    return legend_props
 
 
 def set_legend_props(ax, which_legends, legend_props):
@@ -658,24 +553,32 @@ def set_legend_props(ax, which_legends, legend_props):
     legends_master.extend([l for l in ax.artists if isinstance(l, matplotlib.legend.Legend)])
 
     which_legends = _get_plot_objects(which_legends, legend_props, legends_master, 'legend')
-    
+
     if(which_legends):
-        # Update legend attribute names to those used for matplotlib legend object
-        for n, k in zip(['bbox_to_anchor', 'loc', 'ncol', 'frameon'],
-                        ['_bbox_to_anchor', '_loc', '_ncol', '_drawFrame']):
-            if(n in legend_props):
-                # Convert (x0, y0, (width, height))tuple|list into Bbox object
-                if(n == 'bbox_to_anchor'):
-                    legend_props[n] = _get_legend_bboxes(ax, legend_props[n])
-                legend_props[k] = legend_props[n]
-                legend_props.pop(n)  # Remove user-friendly names
+        _fix_props(legend_props, 'legend')
         # Position updated legend in same location as previous if bbox_to_anchor is not specified
         if('_bbox_to_anchor' not in legend_props):
             legend_props['_bbox_to_anchor'] = [wl.get_bbox_to_anchor() for wl in which_legends]
+        # Otherwise convert (x0, y0, (width, height)) tuple|list into Bbox object
+        else:
+            legend_props['_bbox_to_anchor'] = _get_legend_bboxes(ax, legend_props['_bbox_to_anchor'])
         _set_props(which_legends, 'legend', redraw=False, **legend_props)
         # Update legend artists to reflect changes
         legend_artists = [wl for wl in which_legends]
         plt.gca().artists = list(set(plt.gca().artists) | set(legend_artists))
+
+
+def set_figure_size(fig, fig_width, fig_height, res_inc=1.0):
+    """Set figure size by calling private function
+    Args:
+        fig (matplotlib.figure.Figure)
+        fig_width (float)
+        fig_height (float)
+        res_inc (float): Factor to increase figure resolution by.
+    Returns:
+        None
+    """
+    _set_figure_size(fig, fig_width * res_inc, fig_height * res_inc)
 
 
 def set_log_scale(ax, which_axes, log_scale_props):
@@ -707,15 +610,15 @@ def set_log_scale(ax, which_axes, log_scale_props):
     which_axes = _get_plot_objects(which_axes, log_scale_props, {'x': ax.xaxis, 'y': ax.yaxis},
                                    'axis', ['x', 'y'])
     # Store parameters separately as iterables as they aren't keyword arguments in matplotlib set_(x/y)scale
-    scale = utils.map_list(utils.get_iterable(log_scale_props.pop('scale', None)), len(which_axes))
-    exponents = utils.map_list(utils.get_iterable(log_scale_props.pop('exponents', None)), len(which_axes))
-    exponents_precision = utils.map_list(utils.get_iterable(log_scale_props.pop('exponents_precision', 2)),
+    scale = map_list(get_iterable(log_scale_props.pop('scale', None)), len(which_axes))
+    exponents = map_list(get_iterable(log_scale_props.pop('exponents', None)), len(which_axes))
+    exponents_precision = map_list(get_iterable(log_scale_props.pop('exponents_precision', 2)),
                                          len(which_axes))
-    hide_base = utils.map_list(utils.get_iterable(log_scale_props.pop('hide_base', False)), len(which_axes))
-    base_precision = utils.map_list(utils.get_iterable(log_scale_props.pop('base_precision', 0)), len(which_axes))
+    hide_base = map_list(get_iterable(log_scale_props.pop('hide_base', False)), len(which_axes))
+    base_precision = map_list(get_iterable(log_scale_props.pop('base_precision', 0)), len(which_axes))
 
     # Convert property values into iterables with same length as number of axes
-    log_scale_props = {k: utils.map_list(utils.get_iterable(v), len(which_axes)) for k, v in log_scale_props.items()}
+    log_scale_props = {k: map_list(get_iterable(v), len(which_axes)) for k, v in log_scale_props.items()}
     for i, (wa, s, exp, exp_prec, hb, bp) in \
             enumerate(zip(which_axes, scale, exponents, exponents_precision, hide_base, base_precision)):
         axis_name = wa.axis_name
@@ -736,10 +639,74 @@ def set_log_scale(ax, which_axes, log_scale_props):
                 _set_axis_exponent(wa, base, exp_prec, hb, bp)
 
 
-# ToDo: Any other one-off functions for adjusting plotted features?
+def get_font(mathtext=False):
+    """Get plot font (normal or mathtext). The method for setting mathtext is experimental and may be removed in future
+    updates to matplotlib.
+    Args:
+        mathtext (bool): Sets mathtext rather than normal plot text if True.
+    Returns:
+        (str): matplotlib.rcParams font parameter.
+    """
+    if(mathtext):
+        if(matplotlib.rcParams['mathtext.fontset'] == 'custom'):
+            return matplotlib.rcParams['mathtext.rm']
+        else:
+            return matplotlib.rcParams['mathtext.fontset']
+    else:
+        # font.family is converted to list in built-in matplotlib function so here we flatten it back to string
+        return matplotlib.rcParams['font.family'][0]
+
+
+def set_font(font, mathtext=False):
+    """Get font on system and set plot font (normal or mathtext).
+    Args:
+        font: Font name.
+        mathtext (bool): Sets mathtext rather than normal plot text if True.
+    Returns:
+        None
+    """
+    font = _get_system_font(font)
+    if(font):
+        _set_font(font, mathtext)
+
+
+def get_mathtext():
+    """Get plot mathtext via get_font(mathtext=True)
+    Returns:
+        (str): matplotlib.rcParams font parameter.
+    """
+    return get_font(True)
+
+
+# MISCELLANEOUS GETTER FUNCTIONS ------------------------------------------------
+
+
+@conditional_decorator(sys.version_info.major == 3, 'lru_cache', decorator_args=2, module=functools)
+def get_defaults(file="defaults.json"):
+    """Load default pyblish plot parameters.
+    Args:
+        file (str): File where defaults are stored in json format.
+    Returns:
+        data (dict): Default parameters.
+    """
+    with open(file, 'r') as fp:
+        data = json.load(fp)
+    return data
+
+
+@conditional_decorator(sys.version_info.major == 3, 'lru_cache', decorator_args=2, module=functools)
+def get_available_fonts():
+    """Use matplotlib.font_manager to get fonts on system.
+    Returns:
+         Alphabetically sorted list of .ttf font names.
+    """
+    fmanager = fm.FontManager()
+    font_names = set([f.name for f in fmanager.ttflist])
+    return sorted(font_names)
 
 
 # PRIVATE GETTER FUNCTIONS --------------------------------------------------------------------------------------------
+
 
 def _get_aspect(aspect):
     """Get width-to-height figure aspect ratio given name or value input.
@@ -838,29 +805,27 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
     Returns: 
         objs_return (list): Plotted object(s) of type requested.
     """
-    if(objs_keys):
-        # Convert master object dictionary to list in same order as keys specified
-        objs_master = [objs_master[k] for k in utils.get_iterable(objs_keys)]
-    if(objs is None):
-        # If objs_props is defined then properties are being accessed with setter functions
-        if(objs_props):
-            raise InputError("Trying to access {0} objects but no {0}s were specified.".format(objs_name))
-        # ToDo: Check up on this vv
-        # # If objs_props is False then properties are being accessed with getter functions
-        # elif(objs_props is False):
-        #     raise InputError("Trying to access {0} properties but no {0}s were specified.".format(objs_name))
-    elif(objs == 'all'):
-        objs = objs_master  # Set objects to master list (i.e. all objects)
+    if(all([om is None for om in objs_master])):
+        raise InputError("Trying to set {0} properties but no {0} objects were found.".format(objs_name))
+    else:
+        if(objs_keys):
+            # Convert master object dictionary to list in same order as keys specified
+            objs_master = [objs_master[k] for k in get_iterable(objs_keys)]
+
     # Check if properties have been set
     if(objs_props is None):
         raise InputError("Trying to access {0} objects but no {0} properties were specified.".format(objs_name))
+    if(objs is None):
+        raise InputError("Trying to access {0} objects but no {0}s were found.".format(objs_name))
+    elif(objs == 'all'):
+        objs = objs_master  # Set objects to master list (i.e. all objects)
     # Parse input and add appropriate plot objects to list
     objs_return = []
 
     assert objs_keys is None or isinstance(objs_keys, list)
 
     # Convert object and master list to iterables
-    objs = utils.get_iterable(objs)
+    objs = get_iterable(objs)
 
     for wo in objs:
         if(isinstance(wo, int)):
@@ -870,7 +835,7 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
             wo = wo.replace(' ', '')
             if(all([(c.isdigit() or c in [':', '-', ',']) for c in wo])):
                 try:
-                    indexes = utils.parse_str_ranges(wo)
+                    indexes = parse_str_ranges(wo)
                     for i in indexes:
                         try:
                             objs_return.append(objs_master[i])
@@ -890,7 +855,31 @@ def _get_plot_objects(objs, objs_props, objs_master, objs_name, objs_keys=None):
             objs_return.append(wo)
         else:
             raise InputError("Unrecognised object '{}'".format(wo))
+
     return objs_return
+
+
+def _get_master_objs(ax, objs_name, objs_type, default_master, legend_objs=False):
+    if(legend_objs):
+        try:
+            if(objs_name == 'text'):
+                # Get legend texts
+                objs_master = ax.legend_.texts
+            else:
+                # Get appropriate lines or markers from legend handles
+                objs_master = [h for h in ax.legend_.legendHandles if isinstance(h, objs_type)]
+            objs_name = "legend {}".format(objs_name)
+        except AttributeError:
+            raise AttributeError("Trying to get legend {} properties but no legend was found.".format(objs_name))
+    else:
+        # Get plot objects
+        objs_master = default_master
+        objs_name = "{}".format(objs_name)
+
+    if(objs_master):
+        return objs_master, objs_name
+    else:
+        raise InputError("Trying to get {0} properties but no {0} objects were found.".format(objs_name))
 
 
 def _get_marker_paths(symbols, top_level=True):
@@ -927,16 +916,19 @@ def _get_legend_bboxes(ax, coords):
         coords (tuple|bbox object|list: Coordinates of bbox in axis space.
     Returns:
     """
-    if(isinstance(coords, tuple)):
-        coords = _coords_to_bbox(ax, coords)
-    elif(isinstance(coords, list)):
-        for i, c in enumerate(coords):
-            coords[i] = _get_legend_bboxes(ax, c)
-    elif(isinstance(coords, matplotlib.transforms.TransformedBbox)):
-        pass
+    if(coords):
+        if(isinstance(coords, tuple)):
+            coords = _coords_to_bbox(ax, coords)
+        elif(isinstance(coords, list)):
+            for i, c in enumerate(coords):
+                coords[i] = _get_legend_bboxes(ax, c)
+        elif(isinstance(coords, matplotlib.transforms.TransformedBbox)):
+            pass
+        else:
+            raise InputError("Unrecognised value for bbox_to_anchor. Valid inputs are bbox objects, tuples, or list of "
+                             "tuples|bbox objects.")
     else:
-        print("Unrecognised value for bbox_to_anchor. Valid inputs are bbox objects, tuples, or list of tuples|bbox "
-              "objects.")
+        coords = None
 
     return coords
 
@@ -958,29 +950,14 @@ def _get_props(objs, objs_master, objs_name, objs_attrs, objs_keys=None, get_tic
     # Get appropriate objects from input as list - if objs_keys is defined get objects in order specified by objs_keys
     objs = _get_plot_objects(objs, False, objs_master,
                              objs_name, objs_keys)
-    # Fix attribute names used only as output keys from user-friendly defaults.json names to those that matplotlib uses
-    # internally and which are more appropriate for output
-    if('symbols' in objs_attrs):
-        objs_attrs[objs_attrs.index('symbols')] = 'paths'
-    # Fix copied attribute names used only for property access from user-friendly defaults.json names to those that
-    # matplotlib uses internally
-    objs_attrs_proper = objs_attrs.copy()  # Copy legend attributes
-    if(objs_name == 'tick'):
-        objs_attrs_proper[objs_attrs_proper.index('direction')] = 'tickdir'
-    if(objs_name == 'legend'):
-        objs_attrs_proper[objs_attrs_proper.index('loc')] = '_loc'
-        objs_attrs_proper[objs_attrs_proper.index('ncol')] = '_ncol'
-        objs_attrs_proper[objs_attrs_proper.index('frameon')] = '_drawFrame'
-        objs_attrs_proper[objs_attrs_proper.index('bbox_to_anchor')] = '_bbox_to_anchor'
-
     objs_props = {}
     # Iterate through object attributes and add to property dictionary using built in getter functions for matplotlib
     # object and user-friendly attribute names
-    for n, k in zip(objs_attrs, objs_attrs_proper):
+    for k in objs_attrs:
         if(get_ticks):
-            objs_props[n] = [_get_tick_props(wo, get_ticks).get(k) for wo in objs]
+            objs_props[k] = [_get_tick_props(wo, get_ticks).get(k) for wo in objs]
         else:
-            objs_props[n] = [getattr(wo, k) for wo in objs]
+            objs_props[k] = [plt.getp(wo, k) for wo in objs]
     return objs_props
 
 
@@ -1026,7 +1003,7 @@ def _set_master_defaults(defaults):
                     defaults[k][kk] = defaults['master_defaults'][kk]
                 # bbox_to_anchor has to be given as a list in defaults file but must be a tuple for matplotlib
                 if(kk == 'bbox_to_anchor'):
-                    defaults[k][kk] = tuple(defaults[k][kk])
+                    defaults[k][kk] = None if defaults[k][kk] == 'None' else tuple(defaults[k][kk])
         else:
             if(kv == 'master'):
                 defaults[k] = defaults['master_defaults'][k]
@@ -1042,8 +1019,10 @@ def _set_params_defaults(defaults, num_cols):
         defaults (dict): Dictionary of updated default plotting parameters that supports dot notation.
 
     """
-    defaults['spine_props']['linewidth'] = _add_to_parameter(defaults['spine_props']['linewidth'], (num_cols - 1) * 1)
-    defaults['label_props']['fontsize'] = _add_to_parameter(defaults['label_props']['fontsize'], (num_cols - 1) * 6)
+    defaults['spine_props']['linewidth'] = \
+        _add_to_parameter(defaults['spine_props']['linewidth'], (num_cols - 1) * 1)
+    defaults['label_props']['fontsize'] = \
+        _add_to_parameter(defaults['label_props']['fontsize'], (num_cols - 1) * 6)
     defaults['major_tick_props']['labelsize'] = \
         _add_to_parameter(defaults['major_tick_props']['labelsize'], (num_cols - 1) * 4)
     defaults['major_tick_props']['width'] = \
@@ -1079,6 +1058,7 @@ def _set_rcparams_defaults(defaults_dict):
     rc_params['axes.unicode_minus'] = defaults_dict['use_unicode_minus']  # use smaller minus sign in plots
     rc_params['axes.formatter.use_mathtext'] = defaults_dict['use_mathtext']  # use mathtext for scientific notation
     rc_params['figure.dpi'] = defaults_dict['dpi']
+    rc_params['savefig.dpi'] = defaults_dict['dpi']
 
 
 def _set_font(font, mathtext=False):
@@ -1158,8 +1138,8 @@ def _set_props(objs, objs_name, set_ticks=None, redraw=True, **kwargs):
         None
     """
     # Remove empty keys to avoid trying to set plot parameters to None
-    kwargs = utils.remove_empty_keys(kwargs)
-    kwargs = {k: utils.map_list(utils.get_iterable(v), len(objs)) for k, v in kwargs.items()}
+    kwargs = remove_empty_keys(kwargs)
+    kwargs = {k: map_list(get_iterable(v), len(objs)) for k, v in kwargs.items()}
     for i, o in enumerate(objs):
         props_dict = {}
         for k, v in kwargs.items():
@@ -1188,6 +1168,60 @@ def _set_props(objs, objs_name, set_ticks=None, redraw=True, **kwargs):
 # PRIVATE MISCELLANEOUS FUNCTIONS ---------------------------------------
 
 
+def _fix_defaults(defaults):
+
+    _fix_props(defaults['spine_props'], 'spine')
+    _fix_props(defaults['major_tick_props'], 'ticks')
+    _fix_props(defaults['minor_tick_props'], 'ticks')
+    _fix_props(defaults['label_props'], 'label')
+    _fix_props(defaults['line_props'], 'line')
+    _fix_props(defaults['legend_line_props'], 'legend line')
+    _fix_props(defaults['marker_props'], 'line')
+    _fix_props(defaults['legend_marker_props'], 'legend marker')
+    _fix_props(defaults['text_props'], 'text')
+    _fix_props(defaults['legend_text_props'], 'legend text')
+    _fix_props(defaults['legend_props'], 'legend')
+
+
+def _fix_props(props, prop_name):
+    if(prop_name == 'spine'):
+        if('linecolor' in props):
+            props['edgecolor'] = props.pop('linecolor')
+    elif(prop_name == 'ticks'):
+        if('fontsize' in props):
+            props['labelsize'] = props.pop('fontsize')
+        if('fontcolor' in props):
+            props['labelcolor'] = props.pop('fontcolor')
+    elif(prop_name == 'label'):
+        if('fontcolor' in props):
+            props['color'] = props.pop('fontcolor')
+    elif('line' in prop_name):
+        if('linecolor' in props):
+            props['color'] = props.pop('linecolor')
+    elif('marker' in prop_name):
+        if('linecolor' in props):
+            props['edgecolor'] = props.pop('linecolor')
+        if('sizes' in props):
+            # Convert any non-iterable size value to an iterable as this is the input for the built-in matplotlib
+            # function
+            props['sizes'] = [_ if isinstance(_, list) else [_] for _ in get_iterable(props['sizes'])]
+        if('symbols' in props):
+            # Convert symbol strings to path objects
+            props['paths'] = _get_marker_paths(get_iterable(props.pop('symbols')))
+    elif('text' in prop_name):
+        if('fontname' in props and 'legend' in prop_name):
+            # Get closest matching font or None if font not found
+            props['fontname'] = _get_system_font(props['fontname'])
+        if('fontcolor' in props):
+            props['color'] = props.pop('fontcolor')
+    elif(prop_name == 'legend'):
+        # Update legend attribute names to those used for matplotlib legend object
+        for n, k in zip(['bbox_to_anchor', 'loc', 'ncol', 'frameon'],
+                        ['_bbox_to_anchor', '_loc', '_ncol', '_drawFrame']):
+            if(n in props):
+                props[k] = props.pop(n)
+
+
 def _write_defaults(defaults, file='defaults.json'):
     """Write default pyblish plot parameters to json file.
     Args:
@@ -1209,7 +1243,7 @@ def _add_to_parameter(list_in, addition):
         (list): Array with each element incremented by addition.
     """
     try:
-        return [_ + addition for _ in utils.get_iterable(list_in)]
+        return [_ + addition for _ in get_iterable(list_in)]
     except ValueError:
         ValueError("Could not add {} to each element of list {}".format(addition, list_in))
 
@@ -1281,11 +1315,20 @@ def _bbox_to_coords(ax, bbox):
     return (coords[0][0], coords[0][1],  coords[1][0]-coords[0][0], coords[1][1]-coords[0][1])
 
 
-def _print_availables(func):
-    """Print entries in list.
-    Args:
-        func: Function that returns list of entries.
-    Returns:
-        None
-    """
-    print('\n'.join(func()))
+# PRINT FUNCTIONS --------------------------------------------------------------------------------------------------
+
+
+def print_linestyles():
+    print(get_available_linestyles())
+
+
+def print_axes_scales(keywords=False):
+    print(get_available_scales(keywords))
+
+
+def print_legend_locs():
+    print(get_available_legend_locs())
+
+
+def print_fonts():
+    print('\n'.join(get_available_fonts()))
